@@ -1,1 +1,42 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>INVEST PI | ASG Intelligence</title><link rel="stylesheet" href="style.css"><script src="vendor/xlsx.js"></script></head><body><aside><div class="brand">invest<span>pi</span><small>ASG INTELLIGENCE</small></div><div class="navlabel">INTELIGÊNCIA EMPRESARIAL</div><nav id="nav"></nav><div class="sidefoot"><i></i> Base demonstrativa<br><small>Dados fictícios · fonte identificada</small></div></aside><main><header><span>Piauí / Inteligência de dados</span><label>Perfil <select id="role"><option>Administrador</option><option>Analista</option><option>Visualizador</option></select></label></header><section id="heading"></section><div class="notice">BASE FICTÍCIA <span>Modelo de Aurora Energia e Infraestrutura S.A. Não representa o panorama empresarial real do Piauí.</span></div><section id="filters"></section><div id="app"></div><footer>INVEST PI · ASG Intelligence <span>Fonte: Painel_ASG_Compliance_Integridade.xlsx · referência 30/09/2026</span></footer></main><dialog id="dialog"><button class="close" onclick="this.parentNode.close()">×</button><div id="detail"></div></dialog><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>INVEST PI | ASG Intelligence</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="vendor/xlsx.js"></script>
+  </head>
+
+  <body>
+    <aside>
+      <div class="brand">invest<span>pi</span><small>ASG INTELLIGENCE</small></div>
+      <div class="navlabel">INTELIGÊNCIA EMPRESARIAL</div>
+      <nav id="nav"></nav>
+      <div class="sidefoot"><i></i> Base demonstrativa<br><small>Dados fictícios · fonte identificada</small></div>
+    </aside>
+
+    <main>
+      <header>
+        <span>Piauí / Inteligência de dados</span>
+        <label>Perfil <select id="role"><option>Administrador</option><option>Analista</option><option>Visualizador</option></select></label>
+      </header>
+
+      <section id="heading"></section>
+
+      <div class="notice">BASE FICTÍCIA <span>Modelo de Aurora Energia e Infraestrutura S.A. Não representa o panorama empresarial real do Piauí.</span></div>
+
+      <section id="filters"></section>
+      <div id="app"></div>
+
+      <footer>INVEST PI · ASG Intelligence <span>Fonte: Painel_ASG_Compliance_Integridade.xlsx · referência 30/09/2026</span></footer>
+    </main>
+
+    <dialog id="dialog">
+      <button class="close" onclick="this.parentNode.close()">×</button>
+      <div id="detail"></div>
+    </dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>
