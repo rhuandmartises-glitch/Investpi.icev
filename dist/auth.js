@@ -237,6 +237,7 @@
       detectSessionInUrl: true,
     },
   });
+  notify("");
   // O link de recuperação não libera o painel até finalizar a troca de senha.
   if (new URLSearchParams(location.hash.slice(1)).get("type") === "recovery")
     screen("reset");
@@ -249,6 +250,7 @@
       clearPrivateCache();
       lock("Sessão encerrada.");
     } else if (event === "TOKEN_REFRESHED" && session) {
+      if(!started || !window.investAuth)return;
       setTimeout(async()=>{
         try {
           const {data:{user},error}=await client.auth.getUser();
