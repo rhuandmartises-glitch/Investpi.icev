@@ -1,6 +1,7 @@
-// Somente URL e chave PUBLICÁVEL do Supabase. Nunca coloque service_role ou segredo aqui.
+// URL e chave publicável do projeto. Não inserir service_role ou segredos.
 window.INVEST_AUTH_CONFIG = {
-  url: "",
-  publishableKey: "",
-  allowedDomain: "investepiaui.com", // Exemplo; trocar pelo domínio institucional confirmado.
+  "url": "https://kwvcsupbtwzwpokukhhh.supabase.co",
+  "publishableKey": "sb_publishable_5QN8kaSem76ccZPuE7LlHA_GTMJ-k5a",
+  "allowedDomain": "investepiaui.com"
 };
+
