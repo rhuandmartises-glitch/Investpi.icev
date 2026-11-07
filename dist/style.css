@@ -717,3 +717,40 @@ dialog::backdrop {
     padding: 32px 24px;
   }
 }
+
+/* Identificação permanente da demonstração pública. */
+.demo-banner {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 12px 20px;
+  background: #fff2c8;
+  color: #6a5015;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.6;
+  border-bottom: 1px solid #ead490;
+}
+.demo-credentials {
+  padding: 14px;
+  border: 1px solid #d8e8df;
+  background: #edf7f1;
+  border-radius: 7px;
+  font-size: 12px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+body:has(.demo-banner) .auth-view {
+  min-height: calc(100vh - 45px);
+}
+body.signed-in:has(.demo-banner) aside {
+  top: 45px;
+}
+@media (max-width: 650px) {
+  body.signed-in:has(.demo-banner) aside {
+    top: auto;
+  }
+  .demo-banner {
+    position: relative;
+  }
+}

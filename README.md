@@ -1,12 +1,18 @@
-# INVEST PI — Acesso institucional e competição ASG
+# INVEST PI — Demonstração ASG
 
-Versão em preparação para acesso restrito. A configuração e os testes de integração estão descritos em [backend/README.md](backend/README.md).
+Esta publicação está em **modo demonstração**, com dados fictícios e login simulado. Não é uma barreira de segurança para informações reais.
 
-O cadastro é limitado no servidor ao domínio provisório `investepiaui.com`, exige confirmação por e-mail e não cria usuário de exemplo. Autenticação e consultas dependem do projeto Supabase do responsável. Não há senha padrão ou acesso de demonstração que contorne o login.
+- Conta pública: `rhuan.douglas@investepiaui.com`
+- Senha de exemplo: `12345678`
+- Senhas de cadastro/redefinição: mínimo de 8 caracteres.
+- Cadastro e recuperação: simulações locais, sem enviar mensagens.
+- O Supabase institucional não é acessado nesta modalidade.
+
+A variante de autenticação institucional continua no código para ativação futura. Não basta trocar um rótulo: configurar o serviço, remover o payload demonstrativo publicado e concluir os testes descritos em `backend/README.md`.
 
 ## Dados
 
-A planilha atual tem 72 indicadores, 24 fornecedores e uma matriz de materialidade. Os dados atualizados não são incluídos neste repositório. O painel lê snapshots do banco protegido, com políticas RLS, e registra novas importações sem sobrescrever os anteriores. O payload público `dist/data.json` foi removido nesta versão.
+A planilha atual tem 72 indicadores, 24 fornecedores e uma matriz de materialidade. A demonstração inclui a base declarada fictícia da planilha em `dist/demo-data.json`, com identificação explícita. Nenhum dado do banco institucional é utilizado. Importações demonstrativas ficam apenas nesta sessão do navegador. Na modalidade institucional, os snapshots ficam em PostgreSQL com políticas RLS.
 
 As abas esperadas são Leia-me, Painel, Comparativo_Empresas, Matriz_Materialidade, Indicadores, Parâmetros, Contratos_ASG, Investidores, Canal_Denuncias, Riscos_Integridade e Plano_Ação. As classificações E/S/G vêm da coluna AA de Indicadores. Sem classificação informada, o indicador fica pendente de validação.
 
@@ -20,7 +26,7 @@ Ranking pelo score original dos fornecedores, empates com a mesma colocação, s
 python -m http.server 8000 --directory dist
 ```
 
-Abra http://localhost:8000. Sem o Supabase configurado, aparece a tela de acesso com mensagem de preparação e o painel permanece bloqueado. Não preencha credenciais de banco ou chaves secretas em `auth-config.js`.
+Abra http://localhost:8000. O modo demo funciona sem Supabase. No modo institucional, sem a configuração, o painel permanece bloqueado. Não preencha credenciais de banco ou chaves secretas em `auth-config.js`.
 
 ## Verificação
 

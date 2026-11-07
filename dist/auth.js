@@ -1,6 +1,12 @@
 /* Autenticação real: sessão e dados são validados pelo Supabase e pelas políticas RLS. */
 (() => {
   const cfg = window.INVEST_AUTH_CONFIG;
+  if (cfg.mode === "demo") {
+    window.startInvestDemo().catch((error) => {
+      document.querySelector("#auth-status").textContent = error.message;
+    });
+    return;
+  }
   const box = document.querySelector("#auth-form");
   const status = document.querySelector("#auth-status");
   let mode = "login";
@@ -35,7 +41,7 @@
     document.querySelector("#auth-password").autocomplete =
       next === "login" ? "current-password" : "new-password";
     document.querySelector("#auth-password").minLength =
-      next === "login" ? 1 : 12;
+      next === "login" ? 1 : 8;
     document.querySelector("#auth-submit").textContent = {
       login: "Entrar",
       signup: "Cadastrar e confirmar e-mail",
@@ -43,7 +49,11 @@
       reset: "Salvar nova senha",
     }[next];
     document.querySelector("#auth-password").value = "";
-    notify(client ? "" : "Serviço institucional ainda não conectado. Cadastro e login aguardam configuração.");
+    notify(
+      client
+        ? ""
+        : "Serviço institucional ainda não conectado. Cadastro e login aguardam configuração.",
+    );
   }
   function clearPrivateCache() {
     for (const key of Object.keys(sessionStorage))

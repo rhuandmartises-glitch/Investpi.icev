@@ -4,7 +4,7 @@ Esta versão depende de Supabase Auth e PostgreSQL. Não há senha padrão nem c
 
 1. Projeto criado: Invest PI (`kwvcsupbtwzwpokukhhh`), região São Paulo. Migração aplicada e base atual carregada em tabela protegida.
 2. `001_auth_and_data.sql` já foi executado no projeto; não repetir a criação dos objetos. O domínio está configurado provisoriamente como `investepiaui.com`; confirmar antes da ativação.
-3. Em Auth, habilitar confirmação de e-mail e senha mínima de 12 caracteres. Configurar SMTP próprio para confirmação e recuperação em produção, além dos limites de envio.
+3. Em Auth, habilitar confirmação de e-mail e senha mínima de 8 caracteres. Configurar SMTP próprio para confirmação e recuperação em produção, além dos limites de envio.
 4. Definir Site URL como o endereço final do site e autorizar somente o callback exato `index.html` desse endereço. Ativar o envio de e-mails de recuperação.
 5. Cadastrar e confirmar um usuário institucional. Conceder `role='admin'` a esse UUID diretamente pelo administrador do banco. Nunca aceitar role proveniente de user_metadata.
 6. A planilha atual já foi inserida em `asg_datasets` pelo canal administrativo. Os dados atualizados não fazem parte deste repositório público.
@@ -24,3 +24,7 @@ Testes transacionais de domínio externo, acesso anônimo, e-mail não confirmad
 Pendente: Site URL/callbacks do Auth, SMTP, domínio definitivo e um e-mail real para validar confirmação e recuperação. Ainda não integrar o PR.
 
 Supabase JS incorporado: versão 2.119.0, licença MIT em `dist/vendor/SUPABASE-LICENSE`.
+
+## Publicação demonstrativa
+
+`mode: demo` publica somente dados explicitamente fictícios em demo-data.json. O login é uma simulação, com conta pública rhuan.douglas@investepiaui.com e senha 12345678. Não acessa Supabase nem altera usuários ou senhas institucionais. Cadastro, recuperação e importações são locais à sessão. Para produção, remover a base demonstrativa da hospedagem e configurar a política mínima de 8 caracteres no Auth do Supabase, confirmação, SMTP e testes ponta a ponta.

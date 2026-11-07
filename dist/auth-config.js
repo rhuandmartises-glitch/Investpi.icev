@@ -1,7 +1,8 @@
-// URL e chave publicável do projeto. Não inserir service_role ou segredos.
+// Demonstração pública independente do banco institucional.
+// Para ativar autenticação real, trocar mode para institutional e concluir backend/README.md.
 window.INVEST_AUTH_CONFIG = {
-  "url": "https://kwvcsupbtwzwpokukhhh.supabase.co",
-  "publishableKey": "sb_publishable_5QN8kaSem76ccZPuE7LlHA_GTMJ-k5a",
-  "allowedDomain": "investepiaui.com"
+  mode: "demo",
+  url: "",
+  publishableKey: "",
+  allowedDomain: "investepiaui.com",
 };
-
