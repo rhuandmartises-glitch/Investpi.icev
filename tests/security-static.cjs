@@ -1,0 +1,12 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const auth=fs.readFileSync('dist/auth.js','utf8'),app=fs.readFileSync('dist/app.js','utf8'),sql=fs.readFileSync('backend/001_auth_and_data.sql','utf8'),html=fs.readFileSync('dist/index.html','utf8');
+assert(!fs.existsSync('dist/data.json'));
+assert(!app.includes('fetch("data.json")'));
+assert(!html.includes('<script src="app.js">'));
+assert(auth.includes('email_confirmed_at'));
+assert(sql.includes('enable row level security'));
+assert(sql.includes("p.role=required_role"));
+assert(!sql.includes('to anon using(true)'));
+assert(/storage:\s*sessionStorage/.test(auth));
+assert(app.includes('await window.investAuth.saveDataset'));
+console.log('Verificação estática concluída. Testes reais de Auth/RLS pendentes do projeto Supabase.');
