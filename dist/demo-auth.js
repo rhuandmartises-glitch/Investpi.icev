@@ -5,7 +5,9 @@ window.startInvestDemo = async function startInvestDemo() {
   const defaultEmail = "rhuan.douglas@investepiaui.com";
   const stateKey = "invest-demo-accounts-v1";
   const datasetKey = "invest-demo-datasets-v1";
-  let accounts = JSON.parse(sessionStorage.getItem(stateKey) || "{}");
+  let accounts;
+  try { accounts=JSON.parse(sessionStorage.getItem(stateKey)||"{}"); if(!accounts || Array.isArray(accounts) || typeof accounts!=="object")throw Error(); }
+  catch { accounts={}; }
   let mode = "login";
   let recoveryEmail = null;
   let loaded = false;
@@ -35,8 +37,9 @@ window.startInvestDemo = async function startInvestDemo() {
   async function saveAccount(email, password, name) {
     assertPassword(password);
     const salt = crypto.randomUUID();
-    accounts[email] = { name, salt, hash: await digest(password, salt) };
-    storeAccounts();
+    const next={...accounts,[email]:{name,salt,hash:await digest(password,salt)}};
+    sessionStorage.setItem(stateKey,JSON.stringify(next));
+    accounts=next;
   }
   if (!accounts[defaultEmail])
     await saveAccount(defaultEmail, "12345678", "Rhuan Douglas (exemplo)");
@@ -56,6 +59,7 @@ window.startInvestDemo = async function startInvestDemo() {
   resetDemo.textContent = "Restaurar demonstração";
   $("#auth-status").after(resetDemo);
   resetDemo.onclick = () => {
+    if(!confirm("Apagar as contas e importações simuladas desta sessão e voltar à base inicial?"))return;
     for (const key of Object.keys(sessionStorage))
       if (key.startsWith("invest-demo-") || key.startsWith("asg-"))
         sessionStorage.removeItem(key);
@@ -115,14 +119,19 @@ window.startInvestDemo = async function startInvestDemo() {
       throw Error("A base não está identificada como fictícia.");
     const initial = {
       id: "demo-initial",
-      source_name: "Planilha fictícia de demonstração",
+      source_name: "Painel_ASG_Compliance_Integridade_Completo.xlsx",
       reference_date: fixture.reference_date,
-      created_at: fixture.snapshot_at,
+      created_at: null,
       payload: fixture.payload,
     };
     const datasets = JSON.parse(
       sessionStorage.getItem(datasetKey) || "null",
     ) || [initial];
+    if(!Array.isArray(datasets)||!datasets.length)throw Error("Histórico local inválido. Use Restaurar demonstração para iniciar novamente.");
+    for(const dataset of datasets) {
+      ASG.validate(dataset.payload);
+      if(dataset.id==="demo-initial")dataset.created_at=null;
+    }
     window.investAuth = {
       demo: true,
       user: { email },
@@ -137,6 +146,7 @@ window.startInvestDemo = async function startInvestDemo() {
           throw Error(
             "A demonstração aceita somente bases identificadas como fictícias.",
           );
+        ASG.validate(payload);
         const referenceDate = payload["Parâmetros"]?.find(
           (r) => r[1] === "Data-base",
         )?.[2];
@@ -165,7 +175,7 @@ window.startInvestDemo = async function startInvestDemo() {
     if (!loaded) {
       loaded = true;
       const script = document.createElement("script");
-      script.src = "app.js";
+      script.src = "app.js?v=audit-20261107";
       script.onerror = () => {
         loaded = false;
         $("#workspace").hidden = true;
@@ -201,6 +211,7 @@ window.startInvestDemo = async function startInvestDemo() {
           "Conta fictícia criada e confirmação simulada. Entre com a senha escolhida. Nenhum e-mail foi enviado.",
         );
       } else if (mode === "recover") {
+        $("#demo-recovery-link")?.remove();
         recoveryEmail = accounts[email] ? email : null;
         notify(
           "Simulação: nenhum e-mail foi enviado. Para experimentar a redefinição de uma conta fictícia existente, use o botão abaixo.",

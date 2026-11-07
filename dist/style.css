@@ -754,3 +754,19 @@ body.signed-in:has(.demo-banner) aside {
     position: relative;
   }
 }
+
+#filters small { flex-basis: 100%; line-height: 1.5; }
+#cross-indicators { width: 100%; min-height: 180px; max-width: 100%; }
+@media print {
+ .demo-banner, #heading, .auth-view, .demo-credentials { display:none !important; }
+ #app > section:not(:has(#report)) { display:none !important; }
+ #app:has(#report) #report { display:block; }
+ .tablewrap { overflow:visible; }
+ table { min-width:0; width:100%; font-size:10px; }
+}
+@media(max-width:650px) {
+ header { display:flex; flex-wrap:wrap; gap:10px; }
+ #user-email { overflow-wrap:anywhere; min-width:0; max-width:100%; }
+ #filters label { min-width:0; }
+ #filters small { grid-column:1/-1; }
+}

@@ -1,0 +1,162 @@
+[
+  {
+    "name": "Base atual: validação de tipos e relacionamentos",
+    "status": "aprovado"
+  },
+  {
+    "name": "72 resultados recalculados iguais aos caches originais",
+    "status": "aprovado"
+  },
+  {
+    "name": "Classificação ASG vem da coluna AA, incluindo Social e Ambiental",
+    "status": "aprovado"
+  },
+  {
+    "name": "Peso e pontos por status obedecem Parâmetros e ausências",
+    "status": "aprovado"
+  },
+  {
+    "name": "Divisão por zero e numerador ausente são não calculáveis",
+    "status": "aprovado"
+  },
+  {
+    "name": "Status nas duas polaridades e limites exatos",
+    "status": "aprovado"
+  },
+  {
+    "name": "Combinações de filtros contra consulta independente",
+    "status": "aprovado"
+  },
+  {
+    "name": "Cidade sem dados bloqueia, sem geografia fabricada",
+    "status": "aprovado"
+  },
+  {
+    "name": "Fornecedor não recebe indicadores corporativos por nome semelhante",
+    "status": "aprovado"
+  },
+  {
+    "name": "Filtro indicador + dimensão + organização + período",
+    "status": "aprovado"
+  },
+  {
+    "name": "Todas as 11 páginas renderizam em recortes válidos e vazios",
+    "status": "aprovado"
+  },
+  {
+    "name": "Extrato e Excel contêm os mesmos registros e somente o período ativo",
+    "status": "aprovado"
+  },
+  {
+    "name": "Sem conexão gráfica entre comparativos de abrangência desconhecida",
+    "status": "aprovado"
+  },
+  {
+    "name": "Materialidade não ignora empresa, período ou indicador",
+    "status": "aprovado"
+  },
+  {
+    "name": "Pearson: sinal, ausências, variância e amostra pequena",
+    "status": "aprovado"
+  },
+  {
+    "name": "Interseção corporativa mantém dimensões/unidades e informa amostra insuficiente",
+    "status": "aprovado"
+  },
+  {
+    "name": "Dispersão e tabela usam o mesmo conjunto de fornecedores",
+    "status": "aprovado"
+  },
+  {
+    "name": "Não há cálculo ou posição de ranking no código",
+    "status": "aprovado"
+  },
+  {
+    "name": "Importação bloqueia ID duplicado",
+    "status": "aprovado"
+  },
+  {
+    "name": "Importação bloqueia Score infinito",
+    "status": "aprovado"
+  },
+  {
+    "name": "Importação bloqueia Score textual",
+    "status": "aprovado"
+  },
+  {
+    "name": "Importação bloqueia Data impossível",
+    "status": "aprovado"
+  },
+  {
+    "name": "Importação bloqueia Relação órfã",
+    "status": "aprovado"
+  },
+  {
+    "name": "Importação bloqueia Comparativo divergente",
+    "status": "aprovado"
+  },
+  {
+    "name": "Importação bloqueia Meta invertida",
+    "status": "aprovado"
+  },
+  {
+    "name": "Importação bloqueia Dimensão desconhecida",
+    "status": "aprovado"
+  },
+  {
+    "name": "Importação bloqueia Denúncia com encerramento anterior à abertura",
+    "status": "aprovado"
+  },
+  {
+    "name": "Importação bloqueia Eficácia fora da escala",
+    "status": "aprovado"
+  },
+  {
+    "name": "Ausência de score não vira zero nem derruba o indicador ponderado",
+    "status": "aprovado"
+  },
+  {
+    "name": "Parâmetros reordenados continuam com os mesmos cálculos",
+    "status": "aprovado"
+  },
+  {
+    "name": "CSV preserva IDs, converte números e rejeita fórmulas",
+    "status": "aprovado"
+  },
+  {
+    "name": "Novas versões na mesma data não simulam crescimento",
+    "status": "aprovado"
+  },
+  {
+    "name": "Análises antigas mantêm período e eixos sem invalidar novos filtros",
+    "status": "aprovado"
+  },
+  {
+    "name": "Busca de indicador não inclui fornecedores sem vínculo no extrato",
+    "status": "aprovado"
+  },
+  {
+    "name": "Filtro de indicador, dimensão e período contra seleção independente",
+    "status": "aprovado"
+  },
+  {
+    "name": "Parâmetro repetido e identificador malformado são bloqueados",
+    "status": "aprovado"
+  },
+  {
+    "name": "Cache numérico, status e pontos adulterados são bloqueados",
+    "status": "aprovado"
+  },
+  {
+    "name": "Datas de trimestre independem do fuso horário do navegador",
+    "status": "aprovado"
+  },
+  {
+    "name": "Orçamento ZIP aceita XLSX e rejeita expansão excessiva ou arquivo falso",
+    "status": "aprovado"
+  },
+  {
+    "name": "Seleção de versão por período muda os dados, não apenas o rótulo",
+    "status": "aprovado"
+  }
+]

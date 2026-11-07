@@ -28,3 +28,13 @@ Supabase JS incorporado: versão 2.119.0, licença MIT em `dist/vendor/SUPABASE-
 ## Publicação demonstrativa
 
 `mode: demo` publica somente dados explicitamente fictícios em demo-data.json. O login é uma simulação, com conta pública rhuan.douglas@investepiaui.com e senha 12345678. Não acessa Supabase nem altera usuários ou senhas institucionais. Cadastro, recuperação e importações são locais à sessão. Para produção, remover a base demonstrativa da hospedagem e configurar a política mínima de 8 caracteres no Auth do Supabase, confirmação, SMTP e testes ponta a ponta.
+
+## Auditoria de 07/11/2026
+
+As migrações aditivas 002–006 foram aplicadas ao projeto existente após verificar o snapshot. Elas não alteram as linhas de dados: validam estrutura, datas, tipos, relações das abas, fórmula/status/pontos, tamanho descomprimido e autoria. `created_by` referencia `auth.users`; `created_at` é atribuído no servidor. UPDATE e DELETE de snapshots continuam indisponíveis aos clientes.
+
+`tests/database-audit.sql` foi executado no projeto real com usuários/sessões transacionais, revertidos ao final. Ele verifica também uma razão A/B aparentemente válida cujo numerador contradiz a aba de contratos. Não confundir esses testes SQL reais com homologação do envio de e-mail: o serviço Auth HTTP/SMTP ainda precisa de um fluxo real confirmado.
+
+A ferramenta disponível nesta sessão não oferece configuração de Auth/SMTP. Portanto, o mínimo de oito caracteres foi verificado no front-end/simulador; a política efetiva do serviço Auth precisa ser configurada/verificada no dashboard antes da ativação institucional. Não ativar o modo institucional apenas alterando o nome ou ocultando o aviso demo.
+
+Consultas de histórico do cliente institucional são paginadas para evitar o corte silencioso de 1.000 snapshots. O desempenho foi exercitado com a base atual; não houve teste de carga em escala de produção.

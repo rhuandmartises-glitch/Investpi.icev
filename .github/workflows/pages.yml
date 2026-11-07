@@ -6,6 +6,7 @@ on:
     paths:
       - "dist/**"
       - ".github/workflows/pages.yml"
+      - "tests/**"
   workflow_dispatch:
 
 permissions:
@@ -43,10 +44,15 @@ jobs:
           test -s dist/demo-data.json
           test -s dist/vendor/supabase.js
           test -s dist/vendor/xlsx.js
+          node --check dist/asg-core.js
           node --check dist/app.js
           node --check dist/auth.js
           node --check dist/demo-auth.js
           node tests/security-static.cjs
+          node tests/audit.cjs
+          node tests/import-integration.cjs
+          node tests/auth-integration.cjs
+          node tests/pdf-export.cjs
 
       - name: Preparar arquivos do site
         uses: actions/upload-pages-artifact@v4
