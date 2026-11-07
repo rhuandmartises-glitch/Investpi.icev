@@ -30,3 +30,24 @@ assert.equal(diffs.length,0);
 assert(!fs.existsSync('dist/data.json'));
 assert(!fs.readFileSync('dist/index.html','utf8').includes('<script src="app.js">'));
 console.log('PASS: dados, classificação, linhas de origem, empates, crescimento, ausência, recálculo e ausência de payload público.');
+
+// Selecionar fornecedor deve mostrar seus dados, sem zeros corporativos.
+for (const row of data.Contratos_ASG.filter(r => /^CT-/.test(r[0]))) {
+  ctx.selectedId = row[0];
+  vm.runInContext('filters={company:selectedId,sector:"",uf:"",dim:"",period:"2026"}',ctx);
+  const html = vm.runInContext('dashboard()',ctx);
+  assert(html.includes(row[1].replace(/&/g,'&amp;')));
+  assert(html.includes('Score ASG da empresa'));
+  assert(html.includes('Cláusulas e verificações'));
+  assert(!html.includes('Panorama das dimensões ASG'));
+  assert(!html.includes('Indicadores corporativos</small>'));
+  assert(vm.runInContext('intelligence()',ctx).includes('Score ASG da empresa'));
+}
+vm.runInContext('filters.period="2025"',ctx);
+assert(vm.runInContext('dashboard()',ctx).includes('Sem dados de fornecedores para 2025'));
+assert(!vm.runInContext('dashboard()',ctx).includes('Cláusulas e verificações'));
+vm.runInContext('filters.period="2026";filters.uf="XX"',ctx);
+assert(vm.runInContext('dashboard()',ctx).includes('Nenhuma empresa neste recorte'));
+vm.runInContext('filters={company:"aurora",sector:"",uf:"",dim:"",period:"2026"}',ctx);
+assert(vm.runInContext('dashboard()',ctx).includes('Panorama das dimensões ASG'));
+console.log('PASS: seleção dos 24 fornecedores, inteligência, período ausente, filtros conflitantes e retorno corporativo.');

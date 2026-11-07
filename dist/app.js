@@ -100,6 +100,11 @@ function controls() {
     (e) =>
       (e.onchange = () => {
         filters[e.dataset.filter] = e.value;
+        if (e.dataset.filter === "company") {
+          filters.sector = "";
+          filters.uf = "";
+          filters.dim = "";
+        }
         render();
       }),
   );
@@ -228,7 +233,22 @@ function indicatorTable(a) {
     ),
   );
 }
+function supplierDashboard() {
+  const rows = cs();
+  const intro = `<section class="panel full"><h2>${filters.company ? "Painel da empresa selecionada" : "Painel dos fornecedores"}</h2><p>Os indicadores corporativos pertencem a ${esc(params["Organização (fictícia)"])}. Para os fornecedores, a planilha informa score ASG geral, contratos, cláusulas e verificações de integridade; não há notas individuais por dimensão E/S/G.</p><div class="toolbar"><button class="btn" data-page="9">Ver competição ASG →</button><button class="btn" id="corporate-view">Ver organização principal →</button></div></section>`;
+  if (!rows.length) return intro + '<section class="panel full"><h2>Nenhuma empresa neste recorte</h2><p>Os filtros de empresa, setor e UF não encontram um fornecedor. Use Limpar para escolher novamente.</p></section>';
+  if (filters.period !== "2026") return intro + '<section class="panel full"><h2>Sem dados de fornecedores para 2025</h2><p>Selecione 2026 · T3 acumulado para consultar os dados individuais. O comparativo de 2025 existe apenas para os indicadores corporativos.</p></section>';
+  if (filters.dim) return intro + '<section class="panel full"><h2>Score geral disponível</h2><p>Selecione Todos no filtro Dimensão para consultar os fornecedores. A fonte não informa scores separados de Ambiental, Social e Governança por empresa.</p></section>';
+  const ranked = rankCompanies(contracts);
+  const classes = new Map((raw.Comparativo_Empresas || []).filter(r => /^CT-/.test(r[0])).map(r => [r[0], r[6]]));
+  const r = rows.length === 1 ? rows[0] : null;
+  const valid = rows.filter(r => typeof r[14] === "number" && Number.isFinite(r[14]));
+  const average = valid.length ? valid.reduce((sum, r) => sum + r[14], 0) / valid.length : null;
+  const rank = r ? ranked.find(item => item.row[0] === r[0])?.rank : null;
+  return intro + `<div class="cards">${card("Fornecedores selecionados", rows.length, "Empresas com contratos na base")}${card(r ? "Score ASG da empresa" : "Score ASG médio dos fornecedores", num(r ? r[14] : average), "0–100 · score geral original da planilha")}${card(r ? "Posição na base completa" : "Fornecedores com score", r ? (rank ? rank + "º" : "Não informada") : valid.length, r ? esc(classes.get(r[0]) || "Classificação não informada") : "Média simples dos scores disponíveis")}${card("Valor anual contratado", "R$ " + num(rows.reduce((sum, r) => sum + r[4], 0) / 1000, 2) + " mi", "Valor contratual · não representa receita")}</div><section class="panel full"><h2>Dados dos fornecedores selecionados</h2>${table(["EMPRESA", "CATEGORIA / UF", "SCORE ASG", "CLASSIFICAÇÃO", "RISCO CONTRATUAL", "NÃO CONFORMIDADES"], rows.map(r => `<tr><td><a href="#" data-company="${esc(r[0])}">${esc(r[1])}</a></td><td>${esc(r[2])} · ${esc(r[3])}</td><td>${num(r[14])} / 100</td><td>${esc(classes.get(r[0]) || "Não informada")}</td><td>${esc(r[5])}</td><td>${num(r[15])}</td></tr>`))}<p>Fonte: Contratos_ASG e Comparativo_Empresas · data-base ${esc(params["Data-base"])}. O score geral e o risco contratual são medidas distintas.</p></section>${r ? `<section class="panel full"><h2>Cláusulas e verificações · ${esc(r[1])}</h2>${table(["CRITÉRIO", "RESPOSTA NA PLANILHA"], raw.Contratos_ASG[3].slice(6,14).map((h,j) => `<tr><td>${esc(h)}</td><td>${esc(r[j+6])}</td></tr>`))}<p>Contrato ${esc(r[0])} · fim da vigência: ${esc(r[16])}. As respostas contratuais não constituem notas por dimensão ASG.</p></section>` : ""}<section class="panel full"><h2>Evolução da empresa</h2><p>Histórico insuficiente para calcular crescimento: a planilha contém apenas um período por fornecedor. Consulte a competição para comparar o desempenho atual entre empresas.</p></section>`;
+}
 function dashboard() {
+  if (!corporate()) return supplierDashboard();
   let a = inds(),
     c = cs(),
     counts = ["Atende", "Atenção", "Crítico"].map((s) => [
@@ -238,6 +258,7 @@ function dashboard() {
   return `<div class="cards">${card("Organizações na base", corporate() ? 1 + c.length : c.length, "1 organização principal + fornecedores filtrados")}${card("Indicadores corporativos", a.length, "Catálogo com origem e critérios")}${card("Pontuação ASG parcial", num(score(a, filters.period === "2025")), "/ 100 · dimensões classificadas")}${card("Valor anual contratado", filters.period === "2026" ? "R$ " + num(c.reduce((s, r) => s + r[4], 0) / 1000, 2) + " mi" : "Não disponível", "Fornecedores · não representa receita")}</div><div class="grid"><section class="panel"><h2>Panorama das dimensões ASG</h2><p>Indicadores corporativos por classificação analítica</p>${bars(["Ambiental", "Social", "Governança", "Validar classificação"].map((d) => [d, a.filter((i) => i.dim === d).length]))}<small class="muted">Classificação informada na coluna AA da planilha atual; os eixos originais foram preservados.</small></section><section class="panel"><h2>Acompanhamento das metas</h2><p>Posição corporativa · ${filters.period === "2026" ? "30 de setembro de 2026" : "status indisponível para 2025"}</p>${filters.period === "2026" ? bars(counts) : '<div class="empty">Selecione 2026 para consultar o status registrado.</div>'}<div class="toolbar"><button class="btn" data-page="1">Explorar inteligência ASG →</button></div></section></div><div class="grid"><section class="panel"><h2>Composição setorial</h2><p>Quantidade de fornecedores por categoria contratual</p>${bars(group(c, 2).slice(0, 7))}</section><section class="panel"><h2>Indicador em perspectiva</h2><p>${esc(a.find((i) => i.id === "IND-47")?.name || a[0]?.name || "Sem indicadores corporativos nesta seleção")}</p>${a.length ? trend(a.find((i) => i.id === "IND-47") || a[0]) : '<div class="empty">Os filtros de fornecedores não se aplicam aos indicadores corporativos.</div>'}</section></div><section class="panel full"><h2>Indicadores em acompanhamento</h2><p>Consulte os critérios, valores e a rastreabilidade de cada indicador.</p>${indicatorTable(a.filter((i) => i.status !== "Atende").slice(0, 6))}</section>`;
 }
 function intelligence() {
+  if (!corporate()) return supplierDashboard();
   let a = inds();
   return `<div class="dimgrid">${["Ambiental", "Social", "Governança"]
     .map((d) => {
@@ -332,6 +353,11 @@ function render() {
     materiality,
   ][page]();
   bind();
+  const corporateButton = $("#corporate-view");
+  if (corporateButton) corporateButton.onclick = () => {
+    filters = { company: "aurora", sector: "", uf: "", dim: "", period: "2026" };
+    render();
+  };
 }
 function modal(html) {
   $("#detail").innerHTML = html;
