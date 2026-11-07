@@ -1,21 +1,43 @@
-INVEST PI | ASG Intelligence
-Protótipo de inteligência ASG em português brasileiro, feito com HTML, CSS e JavaScript, sem etapa de compilação.
-Executar localmente
-Com Python 3 instalado, na pasta do projeto execute:
+# INVEST PI — Demonstração ASG
+
+Esta publicação está em **modo demonstração**, com dados fictícios e login simulado. Não é uma barreira de segurança para informações reais.
+
+- Conta pública: `rhuan.douglas@investepiaui.com`
+- Senha de exemplo: `12345678`
+- Senhas de cadastro/redefinição: mínimo de 8 caracteres.
+- Cadastro e recuperação: simulações locais, sem enviar mensagens.
+- O Supabase institucional não é acessado nesta modalidade.
+
+A variante de autenticação institucional continua no código para ativação futura. Não basta trocar um rótulo: configurar o serviço, remover o payload demonstrativo publicado e concluir os testes descritos em `backend/README.md`.
+
+## Dados
+
+A planilha atual tem 72 indicadores, 24 fornecedores e uma matriz de materialidade. A demonstração inclui a base declarada fictícia da planilha em `dist/demo-data.json`, com identificação explícita. Nenhum dado do banco institucional é utilizado. Importações demonstrativas ficam apenas nesta sessão do navegador. Na modalidade institucional, os snapshots ficam em PostgreSQL com políticas RLS.
+
+As abas esperadas são Leia-me, Painel, Comparativo_Empresas, Matriz_Materialidade, Indicadores, Parâmetros, Contratos_ASG, Investidores, Canal_Denuncias, Riscos_Integridade e Plano_Ação. As classificações E/S/G vêm da coluna AA de Indicadores. Sem classificação informada, o indicador fica pendente de validação.
+
+## Competição
+
+Ranking pelo score original dos fornecedores, empates com a mesma colocação, sem transformar ausência em zero. Crescimento exige notas por empresa em datas-base diferentes e metodologia comparável. Uma nova importação com a mesma data-base não conta como evolução temporal. A fonte atual não contém série anterior por fornecedor.
+
+## Executar
+
+```sh
 python -m http.server 8000 --directory dist
-Abra http://localhost:8000. Um servidor HTTP é necessário porque o aplicativo carrega data.json por fetch.
-Arquivos
-dist/index.html: estrutura e navegação.
-dist/style.css: identidade visual e responsividade.
-dist/app.js: filtros, indicadores, cálculos, importação, relatórios e persistência local.
-dist/data.json: dados iniciais extraídos da planilha fornecida.
-dist/vendor/xlsx.js: SheetJS Community Edition 0.20.3, usada na importação e exportação Excel. O aviso de licença original permanece no arquivo.
-Dados e metodologia
-A fonte é um modelo explicitamente fictício de Aurora Energia e Infraestrutura S.A., com 78 indicadores corporativos e 24 contratos de fornecedores. Não representa estatísticas reais do Piauí.
-Os indicadores corporativos não são atribuídos aos fornecedores. Classificações ASG propostas e proxies contratuais são identificadas na interface. Indicadores transversais pendentes de validação são excluídos da pontuação parcial. As comparações entre 2025 e 2026 exigem validação da abrangência dos períodos.
-Persistência e acesso
-Importações, versões anteriores, pesos e análises ficam no localStorage do navegador. Não existe banco compartilhado, sincronização entre dispositivos ou autenticação de usuários. Os perfis são uma simulação funcional para demonstração.
-A importação XLSX aceita o modelo original e recalcula os vínculos conhecidos. Não é um motor genérico de fórmulas Excel. CSV substitui o catálogo seguindo as 24 colunas originais. PDF utiliza a impressão do navegador com a opção Salvar como PDF.
-Publicação
-Publique o conteúdo de dist em um serviço de hospedagem estática. Este repositório não contém credenciais nem a identidade interna do site hospedado no ChatGPT.
-Alterações neste repositório não atualizam automaticamente o site original. Uma nova publicação é necessária.
+```
+
+Abra http://localhost:8000. O modo demo funciona sem Supabase. No modo institucional, sem a configuração, o painel permanece bloqueado. Não preencha credenciais de banco ou chaves secretas em `auth-config.js`.
+
+## Verificação
+
+```sh
+node --check dist/auth.js
+node --check dist/app.js
+node tests/security-static.cjs
+```
+
+Para validar os dados, gere um JSON privado da planilha e execute `node tests/data-and-ranking.cjs /caminho/privado/base.json`. A fixture não deve ser enviada ao GitHub. Os testes estáticos não substituem os testes reais de confirmação, recuperação e RLS.
+
+## Dependências
+
+SheetJS Community Edition 0.20.3 (importação/exportação de Excel) e Supabase JS (autenticação e banco), com licenças preservadas em `dist/vendor`. A publicação do GitHub Pages usa a pasta `dist`.

@@ -1,42 +1,135 @@
 <!doctype html>
 <html lang="pt-BR">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>INVEST PI | ASG Intelligence</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css" />
     <script src="vendor/xlsx.js"></script>
   </head>
 
   <body>
-    <aside>
-      <div class="brand">invest<span>pi</span><small>ASG INTELLIGENCE</small></div>
-      <div class="navlabel">INTELIGÊNCIA EMPRESARIAL</div>
-      <nav id="nav"></nav>
-      <div class="sidefoot"><i></i> Base demonstrativa<br><small>Dados fictícios · fonte identificada</small></div>
-    </aside>
+    <section id="auth-view" class="auth-view">
+      <div class="auth-art">
+        <div class="brand">
+          invest<span>pi</span><small>ASG INTELLIGENCE</small>
+        </div>
+        <div>
+          <span class="eyebrow">ACESSO INSTITUCIONAL</span>
+          <h1>Dados para transformar<br />o desenvolvimento.</h1>
+          <p>
+            Inteligência ambiental, social e de governança<br />em um ambiente
+            exclusivo da equipe.
+          </p>
+        </div>
+        <small>Invest Piauí · Plataforma de acompanhamento ASG</small>
+      </div>
+      <div class="auth-content">
+        <div class="auth-card">
+          <span class="eyebrow">BEM-VINDO À INVEST PI</span>
+          <h1 id="auth-title">Acesse seu painel</h1>
+          <p>
+            Use seu e-mail institucional. Domínio provisório: @investepiaui.com.
+          </p>
+          <div class="auth-tabs">
+            <button type="button" data-auth-mode="login">Entrar</button
+            ><button type="button" data-auth-mode="signup">Cadastrar</button>
+          </div>
+          <form id="auth-form">
+            <label id="name-field" hidden
+              >Nome completo<input
+                id="auth-name"
+                autocomplete="name"
+                maxlength="120"
+            /></label>
+            <label id="email-field"
+              >E-mail institucional<input
+                id="auth-email"
+                type="email"
+                autocomplete="username"
+                placeholder="rhuan.douglas@investepiaui.com"
+                required
+            /></label>
+            <label id="password-field"
+              >Senha<input
+                id="auth-password"
+                type="password"
+                autocomplete="current-password"
+                required
+            /></label>
+            <button id="auth-submit" class="btn primary" type="submit">
+              Entrar
+            </button>
+          </form>
+          <button class="auth-link" type="button" data-auth-mode="recover">
+            Esqueci minha senha
+          </button>
+          <p id="auth-status" role="status" aria-live="polite"></p>
+          <small
+            >Cadastros exigem e-mail do domínio permitido e confirmação da caixa
+            postal. O exemplo não é uma conta pronta.</small
+          >
+        </div>
+      </div>
+    </section>
+    <div id="workspace" hidden>
+      <aside>
+        <div class="brand">
+          invest<span>pi</span><small>ASG INTELLIGENCE</small>
+        </div>
+        <div class="navlabel">INTELIGÊNCIA EMPRESARIAL</div>
+        <nav id="nav"></nav>
+        <div class="sidefoot">
+          <i></i> Base demonstrativa<br /><small
+            >Dados fictícios · fonte identificada</small
+          >
+        </div>
+      </aside>
 
-    <main>
-      <header>
-        <span>Piauí / Inteligência de dados</span>
-        <label>Perfil <select id="role"><option>Administrador</option><option>Analista</option><option>Visualizador</option></select></label>
-      </header>
+      <main>
+        <header>
+          <span>Piauí / Inteligência de dados</span><span id="user-email"></span
+          ><button id="logout" class="btn">Sair</button>
+          <label
+            >Perfil
+            <select id="role">
+              <option>Administrador</option>
+              <option>Analista</option>
+              <option>Visualizador</option>
+            </select></label
+          >
+        </header>
 
-      <section id="heading"></section>
+        <section id="heading"></section>
 
-      <div class="notice">BASE FICTÍCIA <span>Modelo de Aurora Energia e Infraestrutura S.A. Não representa o panorama empresarial real do Piauí.</span></div>
+        <div class="notice">
+          BASE FICTÍCIA
+          <span
+            >Modelo de Aurora Energia e Infraestrutura S.A. Não representa o
+            panorama empresarial real do Piauí.</span
+          >
+        </div>
 
-      <section id="filters"></section>
-      <div id="app"></div>
+        <section id="filters"></section>
+        <div id="app"></div>
 
-      <footer>INVEST PI · ASG Intelligence <span>Fonte: Painel_ASG_Compliance_Integridade.xlsx · referência 30/09/2026</span></footer>
-    </main>
+        <footer>
+          INVEST PI · ASG Intelligence
+          <span
+            >Fonte: Painel_ASG_Compliance_Integridade_Completo.xlsx · referência
+            30/09/2026</span
+          >
+        </footer>
+      </main>
 
-    <dialog id="dialog">
-      <button class="close" onclick="this.parentNode.close()">×</button>
-      <div id="detail"></div>
-    </dialog>
-
-    <script src="app.js"></script>
+      <dialog id="dialog">
+        <button class="close" onclick="this.parentNode.close()">×</button>
+        <div id="detail"></div>
+      </dialog>
+    </div>
+    <script src="vendor/supabase.js"></script>
+    <script src="auth-config.js"></script>
+    <script src="demo-auth.js"></script>
+    <script src="auth.js"></script>
   </body>
 </html>
