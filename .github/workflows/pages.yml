@@ -36,10 +36,14 @@ jobs:
           test -s dist/index.html
           test -s dist/style.css
           test -s dist/app.js
-          test -s dist/data.json
+          test ! -e dist/data.json
+          test -s dist/auth.js
+          test -s dist/auth-config.js
+          test -s dist/vendor/supabase.js
           test -s dist/vendor/xlsx.js
           node --check dist/app.js
-          node -e "JSON.parse(require('fs').readFileSync('dist/data.json', 'utf8'))"
+          node --check dist/auth.js
+          node tests/security-static.cjs
 
       - name: Preparar arquivos do site
         uses: actions/upload-pages-artifact@v4
