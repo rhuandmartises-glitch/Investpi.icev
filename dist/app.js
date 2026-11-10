@@ -158,7 +158,7 @@ function bars(entries) {
   return entries
     .map(
       ([k, v]) =>
-        `<div class="barrow"><span>${esc(k)}</span><div class="bar"><i style="width:${(v / max) * 100}%"></i></div><b>${num(v)}</b></div>`,
+        `<div class="barrow"><span>${esc(k)}</span><div class="bar" role="img" aria-label="${esc(k)}: ${num(v)}"><i style="width:${(v / max) * 100}%"></i></div><b>${num(v)}</b></div>`,
     )
     .join("");
 }
@@ -181,7 +181,7 @@ function indicatorTable(a) {
     ["INDICADOR", "DIMENSÃO", "RESULTADO", "META", "STATUS"],
     a.map(
       (i) =>
-        `<tr class="clickable" data-ind="${esc(i.id)}"><td><small class="muted">${esc(i.id)}</small><br>${esc(i.name)}</td><td>${esc(i.dim)}</td><td><b>${fmt(i, val(i))}</b></td><td>${filters.period === "current" ? fmt(i, i.target) : "Meta histórica não informada"}</td><td>${filters.period === "current" ? badge(i.status) : badge("Comparativo")}</td></tr>`,
+        `<tr class="clickable" tabindex="0" role="button" data-ind="${esc(i.id)}"><td><small class="muted">${esc(i.id)}</small><br>${esc(i.name)}</td><td>${esc(i.dim)}</td><td><b>${fmt(i, val(i))}</b></td><td>${filters.period === "current" ? fmt(i, i.target) : "Meta histórica não informada"}</td><td>${filters.period === "current" ? badge(i.status) : badge("Comparativo")}</td></tr>`,
     ),
   );
 }
@@ -306,7 +306,7 @@ function render() {
   $("#nav").innerHTML = pages
     .map(
       (n, i) =>
-        `<button data-page="${i}" class="${i === page ? "active" : ""}"><b>${icons[i]}</b>${n}</button>`,
+        `<button data-page="${i}" class="${i === page ? "active" : ""}"${i === page ? ' aria-current="page"' : ""}><b>${icons[i]}</b>${n}</button>`,
     )
     .join("");
   $("#heading").innerHTML =
@@ -359,7 +359,7 @@ function cross() {
   const result=x===y ? {n:points.length,r:null,reason:"Escolha variáveis diferentes; a correlação de uma variável consigo mesma não é uma relação exploratória."} : ASG.pearson(points.map(r=>[r[x],r[y]]));
   const maxX=Math.max(...points.map(r=>r[x]),1), maxY=Math.max(...points.map(r=>r[y]),1);
   const labels={4:"Valor anual (R$ mil)",14:"Score ASG (0–100)",15:"Não conformidades (nº)"};
-  $("#crossresult").innerHTML = !points.length ? '<p>Sem pares válidos para os filtros e período selecionados. A base não tem variáveis individuais por dimensão ou indicador corporativo dos fornecedores.</p>' : `<p>X: ${esc(labels[x])} · Y: ${esc(labels[y])} · Data-base ${esc(params["Data-base"])}</p><svg viewBox="0 0 650 265" role="img" aria-label="Dispersão dos fornecedores: ${esc(labels[x])} por ${esc(labels[y])}"><path d="M65 25V215H615" stroke="#cbdcd3" fill="none"/>${points.map(r=>`<circle cx="${65+r[x]/maxX*530}" cy="${215-r[y]/maxY*170}" r="6" fill="#16826a"><title>${esc(r[1])}: ${esc(labels[x])} = ${num(r[x])}; ${esc(labels[y])} = ${num(r[y])}</title></circle>`).join("")}<text x="65" y="235" font-size="11">0</text><text x="560" y="235" font-size="11">${num(maxX)}</text><text x="0" y="40" font-size="11">${num(maxY)}</text><text x="180" y="257" font-size="11">X: ${esc(labels[x])}</text></svg><p>${result.n} pares válidos · Pearson: ${num(result.r,3)}. ${esc(result.reason)}</p>${table(["FORNECEDOR",labels[x],labels[y]],points.map(r=>`<tr><td>${esc(r[1])}</td><td>${num(r[x])}</td><td>${num(r[y])}</td></tr>`))}<h3>Matriz das três variáveis contratuais</h3>${table(["VARIÁVEIS","PARES VÁLIDOS","PEARSON"],[[4,14],[4,15],[14,15]].map(([a,b])=>{const q=ASG.pearson(c.map(r=>[r[a],r[b]]));return `<tr><td>${esc(labels[a])} × ${esc(labels[b])}</td><td>${q.n}</td><td>${num(q.r,3)}</td></tr>`;}))}`;
+  $("#crossresult").innerHTML = !points.length ? '<p>Sem pares válidos para os filtros e período selecionados. A base não tem variáveis individuais por dimensão ou indicador corporativo dos fornecedores.</p>' : `<p>X: ${esc(labels[x])} · Y: ${esc(labels[y])} · Data-base ${esc(params["Data-base"])}</p><svg viewBox="0 0 650 265" role="img" aria-label="Dispersão dos fornecedores: ${esc(labels[x])} por ${esc(labels[y])}"><path d="M65 25V215H615" stroke="#c9d6e8" fill="none"/>${points.map(r=>`<circle cx="${65+r[x]/maxX*530}" cy="${215-r[y]/maxY*170}" r="6" fill="#2b5597"><title>${esc(r[1])}: ${esc(labels[x])} = ${num(r[x])}; ${esc(labels[y])} = ${num(r[y])}</title></circle>`).join("")}<text x="65" y="235" font-size="11" fill="#1e2b40">0</text><text x="560" y="235" font-size="11">${num(maxX)}</text><text x="0" y="40" font-size="11">${num(maxY)}</text><text x="180" y="257" font-size="11">X: ${esc(labels[x])}</text></svg><p>${result.n} pares válidos · Pearson: ${num(result.r,3)}. ${esc(result.reason)}</p>${table(["FORNECEDOR",labels[x],labels[y]],points.map(r=>`<tr><td>${esc(r[1])}</td><td>${num(r[x])}</td><td>${num(r[y])}</td></tr>`))}<h3>Matriz das três variáveis contratuais</h3>${table(["VARIÁVEIS","PARES VÁLIDOS","PEARSON"],[[4,14],[4,15],[14,15]].map(([a,b])=>{const q=ASG.pearson(c.map(r=>[r[a],r[b]]));return `<tr><td>${esc(labels[a])} × ${esc(labels[b])}</td><td>${q.n}</td><td>${num(q.r,3)}</td></tr>`;}))}`;
 }
 
 function saved() {
@@ -457,7 +457,15 @@ function bind() {
   );
   document
     .querySelectorAll("[data-ind]")
-    .forEach((b) => (b.onclick = () => detail(b.dataset.ind)));
+    .forEach((b) => {
+      b.onclick = () => detail(b.dataset.ind);
+      b.onkeydown = (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          detail(b.dataset.ind);
+        }
+      };
+    });
   document.querySelectorAll("[data-company]").forEach(
     (b) =>
       (b.onclick = (e) => {
@@ -674,7 +682,7 @@ function materiality() {
         "Governança (G)": "Governança",
       }[r[8]] === filters.dim,
   );
-  return `<section class="panel full"><h2>Matriz de materialidade</h2><p>Temas corporativos: relevância para stakeholders × impacto no negócio, em escala de 1 a 5. Não são pontuações de fornecedores. A classificação de prioridade é a informada na fonte.</p><svg viewBox="0 0 650 260" role="img" aria-label="Matriz de materialidade"><path d="M65 20V215H615" fill="none" stroke="#b5cfc1"/>${filtered.map((r) => `<circle cx="${65 + (r[5] / 5) * 535}" cy="${215 - (r[4] / 5) * 185}" r="7" fill="${r[8] === "Ambiental (E)" ? "#1e8c66" : r[8] === "Social (S)" ? "#b78d38" : "#39748a"}"><title>${esc(r[1])}: impacto ${num(r[5])}; relevância ${num(r[4])}</title></circle>`).join("")}<text x="240" y="250" font-size="12">Impacto no negócio (1–5)</text><text x="10" y="20" font-size="11">Relevância (1–5)</text></svg>${table(
+  return `<section class="panel full"><h2>Matriz de materialidade</h2><p>Temas corporativos: relevância para stakeholders × impacto no negócio, em escala de 1 a 5. Não são pontuações de fornecedores. A classificação de prioridade é a informada na fonte.</p><svg viewBox="0 0 650 260" role="img" aria-label="Matriz de materialidade"><path d="M65 20V215H615" fill="none" stroke="#c9d6e8"/>${filtered.map((r) => { const cx = 65 + (r[5] / 5) * 535, cy = 215 - (r[4] / 5) * 185, k = r[8] === "Ambiental (E)" ? 0 : r[8] === "Social (S)" ? 1 : 2, fill = ["#1d3f8f", "#3b7dd8", "#a9c6f0"][k], t = `<title>${esc(r[1])}: impacto ${num(r[5])}; relevância ${num(r[4])}</title>`, st = 'stroke="#16345f" stroke-width="1.5"'; return k === 0 ? `<circle cx="${cx}" cy="${cy}" r="7" fill="${fill}" ${st}>${t}</circle>` : k === 1 ? `<rect x="${cx - 6.5}" y="${cy - 6.5}" width="13" height="13" rx="2" fill="${fill}" ${st}>${t}</rect>` : `<path d="M${cx} ${cy - 8.5}L${cx + 8.5} ${cy}L${cx} ${cy + 8.5}L${cx - 8.5} ${cy}Z" fill="${fill}" ${st}>${t}</path>`; }).join("")}<text x="240" y="250" font-size="12" fill="#1e2b40">Impacto no negócio (1–5)</text><text x="10" y="20" font-size="11" fill="#1e2b40">Relevância (1–5)</text></svg><div class="legend" aria-hidden="true"><span><i class="mk mk-c"></i>Ambiental (E)</span><span><i class="mk mk-s"></i>Social (S)</span><span><i class="mk mk-d"></i>Governança (G)</span></div>${table(
     ["TEMA", "PILAR", "STAKEHOLDERS", "NEGÓCIO", "PRIORIDADE", "GESTÃO"],
     filtered.map(
       (r) =>
