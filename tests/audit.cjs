@@ -51,6 +51,73 @@ test('Cache numérico, status e pontos adulterados são bloqueados',()=>{for(con
 test('Datas de trimestre independem do fuso horário do navegador',()=>{const original=process.env.TZ;try{process.env.TZ='America/Fortaleza';const d=ASG.clone(data);d['Parâmetros'].find(r=>r[1]==='Data-base')[2]='2026-10-01';const n=ASG.recalc(d);assert(n.Investidores.filter(r=>/^INV-/.test(r[0])).every(r=>r[7]==='Não'));}finally{if(original)process.env.TZ=original;else delete process.env.TZ;}});
 test('Orçamento ZIP aceita XLSX e rejeita expansão excessiva ou arquivo falso',()=>{const w=XLSX.utils.book_new();XLSX.utils.book_append_sheet(w,XLSX.utils.aoa_to_sheet([['ok']]),'teste');const bytes=XLSX.write(w,{type:'buffer',bookType:'xlsx'});assert(ASG.checkXlsxArchive(bytes).entries>0);assert.throws(()=>ASG.checkXlsxArchive(Buffer.from('fake')));const bad=Buffer.from(bytes);let offset=-1;for(let i=0;i<bad.length-46;i++)if(bad.readUInt32LE(i)===0x02014b50){offset=i;break;}assert(offset>=0);bad.writeUInt32LE(30*1024*1024,offset+24);assert.throws(()=>ASG.checkXlsxArchive(bad));});
 test('Seleção de versão por período muda os dados, não apenas o rótulo',()=>{reset();const originalDatasets=ctx.window.investAuth.datasets;const future=ASG.recalc(mutator(d=>{d['Parâmetros'].find(r=>r[1]==='Data-base')[2]='2027-09-30';d['Parâmetros'].find(r=>r[1]==='Período de referência')[2]='Acumulado jan-set 2027';}));ctx.window.investAuth.datasets=[{id:'future',payload:future,reference_date:'2027-09-30',created_at:'2027-11-01',source_name:'future.xlsx'},...originalDatasets];ctx.future=future;run('raw=future;activeDatasetId="future";model();');const nodes=['company','sector','uf','dim','indicator','period'].map(key=>({dataset:{filter:key},value:''}));ctx.document.querySelectorAll=selector=>selector==='[data-filter]'?nodes:[];run('render=()=>{};controls();');const period=nodes.find(n=>n.dataset.filter==='period');period.value='snapshot:initial';period.onchange();assert.equal(run('params["Data-base"]'),'2026-09-30');assert.equal(run('activeDatasetId'),'initial');period.value='current';period.onchange();assert.equal(run('params["Data-base"]'),'2027-09-30');assert.equal(run('activeDatasetId'),'future');ctx.window.investAuth.datasets=originalDatasets;run('raw=fixture;model();');ctx.document.querySelectorAll=()=>[];});
+test('Busca combina trechos do nome sem acentos e preserva identificadores',()=>{
+  const originalDoc = ctx.document;
+  const makeOption = (value,text,selected=false) => ({value,text,selected});
+  const options = [makeOption("","Visão coletiva",true),makeOption("CT-005","Manutenção Industrial Alfa"),makeOption("CT-002","Tecnologia")];
+  const select = {options,get selectedOptions(){return this.options.filter(o=>o.selected);},replaceChildren(...children){this.options=children;},focus(){}};
+  const input = {value:"manutencao",dataset:{searchSelect:"test"},nextElementSibling:{}};
+  ctx.document={querySelector:()=>select,querySelectorAll:()=>[input]};
+  try {
+    run('bindSelectSearch()');
+    input.oninput();
+    assert.deepEqual(select.options.map(o=>o.value),["","CT-005"]);
+    assert.equal(select.selectedOptions[0].value,"");
+    input.value="não existe";
+    input.oninput();
+    assert.equal(input.nextElementSibling.textContent,"Nenhuma opção encontrada");
+    input.value="";
+    input.oninput();
+    assert.equal(select.options.length,3);
+  } finally {ctx.document=originalDoc;}
+});
+test('Histórico, prévia e Excel mantêm data-base e empresa nos intervalos',()=>{
+  reset();
+  const saved = ctx.window.investAuth.datasets;
+  const dates = ["2023-08-31","2023-10-31","2025-10-31","2026-06-30","2026-07-31","2026-08-31","2026-09-30"];
+  const dataFor = (date,id) => {
+    const payload = ASG.clone(data);
+    for (const row of payload["Parâmetros"]) {
+      if (row[1] === "Data-base") row[2] = date;
+      if (row[1] === "Período de referência") row[2] = "Referência " + date;
+    }
+    return {id,reference_date:date,created_at:"2026-11-01",source_name:"Teste",payload};
+  };
+  ctx.window.investAuth.datasets = dates.map((date,index)=>dataFor(date,String(index)));
+  ctx.window.investAuth.datasets.unshift({...dataFor("2026-07-31","revisao"),created_at:"2026-11-02"});
+  try {
+    run('filters.company="CT-005";historyMonth="2026-07"');
+    const history=run('history()').split("Histórico de importações")[0];
+    assert(history.includes("2026-07-31") && !history.includes("2026-08-31"));
+    for (const [range,count] of [["quarter",3],["year",5],["threeYears",6],["all",7],["month",1]]) {
+      ctx.range=range;
+      const sections=run('extractRange=range;extractMonth="2026-07";extractSections()');
+      assert.equal(sections.length,count,range);
+      assert(sections.every(section=>section.suppliers.length===1 && section.suppliers[0][0]==="CT-005"));
+    }
+    run('extractRange="quarter"');
+    const preview=run('report()');
+    assert(preview.includes("3 datas-base disponíveis") && preview.includes("Manutenção Industrial Alfa"));
+    const rows=XLSX.utils.sheet_to_json(run('exportWorkbook()').Sheets.Fornecedores,{header:1}).slice(1);
+    assert.deepEqual(rows.map(row=>[row[0],row.at(-2)]),dates.slice(-3).map(date=>["CT-005",date]));
+  } finally {
+    ctx.window.investAuth.datasets=saved;
+    run('extractRange="active";extractMonth="";historyMonth="all"');
+    reset();
+  }
+});
+test('Mapa apresenta 27 UFs e a lista respeita o recorte selecionado',()=>{
+  reset();
+  const map=require('../dist/brasil-uf.json');
+  assert.equal(new Set(map.states.map(state=>state.uf)).size,27);
+  assert(map.states.every(state=>state.path.startsWith("M") && state.path.endsWith("Z")));
+  assert(run('geography()').includes("24 de 24 fornecedores"));
+  const pi = run('mapUF="PI";geography()');
+  assert(pi.includes("6 de 24 fornecedores") && pi.includes("Construtora Vale Verde"));
+  assert(!pi.includes("TecnoNuvem Sistemas"));
+  assert(run('mapUF="";filters.uf="CE";geography()').includes("4 de 4 fornecedores"));
+  reset();
+});
 reset();
 console.log(JSON.stringify({passed:results.filter(r=>r.status==='aprovado').length,failed:results.filter(r=>r.status==='reprovado').length,total:results.length}));fs.mkdirSync('audit',{recursive:true});fs.writeFileSync('audit/test-results.json',JSON.stringify(results,null,2));
 if(results.some(r=>r.status==='reprovado'))process.exitCode=1;

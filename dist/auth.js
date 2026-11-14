@@ -142,7 +142,7 @@
     if (!started) {
       started = true;
       const script = document.createElement("script");
-      script.src = "app.js?v=audit-20261107";
+      script.src = "app.js?v=navegacao-20261114";
       script.onerror=()=>{started=false;lock("Não foi possível carregar o painel. Atualize a página.");};
       document.body.append(script);
     }

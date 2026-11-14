@@ -175,7 +175,7 @@ window.startInvestDemo = async function startInvestDemo() {
     if (!loaded) {
       loaded = true;
       const script = document.createElement("script");
-      script.src = "app.js?v=audit-20261107";
+      script.src = "app.js?v=navegacao-20261114";
       script.onerror = () => {
         loaded = false;
         $("#workspace").hidden = true;

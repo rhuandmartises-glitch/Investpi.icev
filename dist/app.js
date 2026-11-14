@@ -45,6 +45,75 @@ let raw,
   pending = null;
 let activeDatasetId = null;
 let historyIndicator = "";
+let historyMonth = "all";
+let extractRange = "active";
+let extractMonth = "";
+let extractAnchor = "";
+let mapUF = "";
+
+function latestDataset() {
+  return ASG.snapshots(window.investAuth.datasets).at(-1);
+}
+
+function monthName(month) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    month: "long", year: "numeric", timeZone: "UTC",
+  }).format(new Date(month + "-01T00:00:00Z"));
+}
+
+function monthOptions(selected) {
+  const months = [...new Set(ASG.snapshots(window.investAuth.datasets)
+    .filter(dataset => sameOrganization(dataset.payload))
+    .map(dataset => dataset.reference_date.slice(0, 7)))].reverse();
+  return months.map(month => `<option value="${month}" ${month === selected ? "selected" : ""}>${esc(monthName(month))}</option>`).join("");
+}
+
+function periodDatasets(range, month, reference, datasets = window.investAuth.datasets) {
+  const snapshots = ASG.snapshots(datasets);
+  if (range === "all") return snapshots;
+  if (range === "month") return snapshots.filter(dataset => dataset.reference_date.startsWith(month + "-"));
+  const months = { quarter: 3, year: 12, threeYears: 36 }[range];
+  if (!months) return [];
+  const [year, monthNumber] = reference.split("-").map(Number);
+  const start = new Date(Date.UTC(year, monthNumber - months, 1)).toISOString().slice(0, 10);
+  return snapshots.filter(dataset => dataset.reference_date >= start && dataset.reference_date <= reference);
+}
+
+function normalizedSearch(value) {
+  return value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("pt-BR").trim();
+}
+
+function searchField(id, placeholder, label) {
+  return `<input type="search" data-search-select="${id}" placeholder="${placeholder}" aria-label="${label}"><small class="choice-feedback" role="status"></small>`;
+}
+
+function bindSelectSearch() {
+  document.querySelectorAll("[data-search-select]").forEach(input => {
+    const select = $("#" + input.dataset.searchSelect);
+    const original = Array.from(select.options);
+    const feedback = input.nextElementSibling;
+    let matches = original;
+    input.oninput = () => {
+      const query = normalizedSearch(input.value);
+      const selected = Array.from(select.selectedOptions, option => option.value);
+      matches = original.filter(option => normalizedSearch(option.text).includes(query));
+      const visible = query ? original.filter(option => matches.includes(option) || selected.includes(option.value)) : original;
+      select.replaceChildren(...visible);
+      for (const option of visible) option.selected = selected.includes(option.value);
+      feedback.textContent = query ? (matches.length ? `${matches.length} opções encontradas` : "Nenhuma opção encontrada") : "";
+    };
+    input.onkeydown = event => {
+      if (event.key !== "Enter" && event.key !== "ArrowDown") return;
+      event.preventDefault();
+      if (event.key === "Enter" && !select.multiple && normalizedSearch(input.value) && matches.length === 1) {
+        select.value = matches[0].value;
+        select.dispatchEvent(new Event("change", {bubbles: true}));
+        return;
+      }
+      select.focus();
+    };
+  });
+}
 let analysis = { mode: "suppliers", x: "4", y: "14", indicators: [] };
 function model() {
   params = ASG.parameters(raw);
@@ -89,19 +158,20 @@ function controls() {
     (ignore === "uf" || !filters.uf || r[3] === filters.uf));
   const companies = available("company");
   const companyOptions = companies.map(r => `<option value="${esc(r[0])}" ${filters.company === r[0] ? "selected" : ""}>${esc(r[1])}</option>`).join("");
-  const label = ASG.parameters(window.investAuth.datasets[0].payload)["Período de referência"];
-  const past = ASG.snapshots(window.investAuth.datasets).filter(d=>d.id!==window.investAuth.datasets[0].id);
-  $("#filters").innerHTML = `<label>Empresa / entidade<select data-filter="company"><option value="">Visão coletiva</option><option value="aurora" ${filters.company === "aurora" ? "selected" : ""}>${esc(params["Organização (fictícia)"])}</option>${companyOptions}${filters.company && filters.company !== "aurora" && !companies.some(r=>r[0]===filters.company) ? `<option value="${esc(filters.company)}" selected>Seleção sem correspondência (${esc(filters.company)})</option>` : ""}</select></label>
-    <label>Setor do fornecedor<select data-filter="sector">${options([...available("sector").map(r=>r[2]),filters.sector],filters.sector)}</select></label>
+  const latest = latestDataset();
+  const label = ASG.parameters(latest.payload)["Período de referência"];
+  const past = ASG.snapshots(window.investAuth.datasets).filter(d=>d.id!==latest.id).reverse();
+  $("#filters").innerHTML = `<div class="searchable-filter">${searchField("filter-company", "Digite parte do nome", "Buscar empresa") }<label>Empresa / entidade<select id="filter-company" data-filter="company"><option value="">Visão coletiva</option><option value="aurora" ${filters.company === "aurora" ? "selected" : ""}>${esc(params["Organização (fictícia)"])}</option>${companyOptions}${filters.company && filters.company !== "aurora" && !companies.some(r=>r[0]===filters.company) ? `<option value="${esc(filters.company)}" selected>Seleção sem correspondência (${esc(filters.company)})</option>` : ""}</select></label></div>
+    <div class="searchable-filter">${searchField("filter-sector", "Digite parte do setor", "Buscar setor")}<label>Setor do fornecedor<select id="filter-sector" data-filter="sector">${options([...available("sector").map(r=>r[2]),filters.sector],filters.sector)}</select></label></div>
     <label>UF do fornecedor<select data-filter="uf">${options([...available("uf").map(r=>r[3]),filters.uf],filters.uf)}</select></label>
     <label>Cidade<select disabled aria-describedby="city-help"><option>Não informada na base</option></select></label>
     <label>Dimensão<select data-filter="dim">${options(["Ambiental","Social","Governança","Validar classificação"],filters.dim)}</select></label>
-    <label>Indicador corporativo<select data-filter="indicator"><option value="">Todos</option>${ind.filter(i=>!filters.dim || i.dim===filters.dim || i.id===filters.indicator).map(i=>`<option value="${esc(i.id)}" ${filters.indicator===i.id ? "selected" : ""}>${esc(i.id+" · "+i.name)}</option>`).join("")}</select></label>
-    <label>Período<select data-filter="period"><option value="current" ${filters.period==="current" && activeDatasetId===window.investAuth.datasets[0].id?"selected":""}>${esc(label)} · versão mais recente</option>${past.map(d=>`<option value="snapshot:${esc(d.id)}" ${filters.period==="current" && activeDatasetId===d.id?"selected":""}>${esc(d.reference_date+" · "+d.source_name)}</option>`).join("")}<option value="previous" ${filters.period==="previous"?"selected":""}>Comparativo da fonte · abrangência não informada</option></select></label>
+    <div class="searchable-filter">${searchField("filter-indicator", "Digite nome ou código", "Buscar opção de indicador")}<label>Indicador corporativo<select id="filter-indicator" data-filter="indicator"><option value="">Todos</option>${ind.filter(i=>!filters.dim || i.dim===filters.dim || i.id===filters.indicator).map(i=>`<option value="${esc(i.id)}" ${filters.indicator===i.id ? "selected" : ""}>${esc(i.id+" · "+i.name)}</option>`).join("")}</select></label></div>
+    <label>Período<select data-filter="period"><option value="current" ${filters.period==="current" && activeDatasetId===latest.id?"selected":""}>${esc(label)} · versão mais recente</option>${past.map(d=>`<option value="snapshot:${esc(d.id)}" ${filters.period==="current" && activeDatasetId===d.id?"selected":""}>${esc(d.reference_date+" · "+d.source_name)}</option>`).join("")}<option value="previous" ${filters.period==="previous"?"selected":""}>Comparativo da fonte · abrangência não informada</option></select></label>
     <button class="btn" id="clear">Limpar</button><small id="city-help">A fonte não informa municípios. Filtros de fornecedor não atribuem indicadores corporativos a empresas individuais.${search ? " Busca de indicador ativa: "+esc(search)+". Use Limpar para remover." : ""}</small>`;
   document.querySelectorAll("[data-filter]").forEach(e => e.onchange = () => {
     if(e.dataset.filter==="period" && e.value!=="previous") {
-      const id=e.value==="current"?window.investAuth.datasets[0].id:e.value.slice("snapshot:".length);
+      const id=e.value==="current"?latest.id:e.value.slice("snapshot:".length);
       const dataset=window.investAuth.datasets.find(d=>d.id===id);
       if(!dataset)return;
       if(activeDatasetId!==dataset.id){weights={};try{sessionStorage.removeItem("asg-weights");sessionStorage.removeItem("asg-weight-context");}catch{}}
@@ -109,14 +179,22 @@ function controls() {
       try{sessionStorage.setItem("asg-source",dataset.source_name);}catch{}
       model();
     } else filters[e.dataset.filter]=e.value;
+    if (e.dataset.filter === "period") {
+      historyMonth = "all";
+      extractRange = "active";
+      extractAnchor = "";
+    }
+    mapUF = "";
     render();
+    if (e.id) document.getElementById(e.id)?.focus();
   });
   $("#clear").onclick = () => {
     filters={company:"",sector:"",uf:"",city:"",dim:"",indicator:"",period:"current"};
     search="";
-    if(activeDatasetId!==window.investAuth.datasets[0].id)weights={};
-    raw=window.investAuth.datasets[0].payload;activeDatasetId=window.investAuth.datasets[0].id;model();
-    try{sessionStorage.setItem("asg-source",window.investAuth.datasets[0].source_name);}catch{}
+    if (activeDatasetId !== latest.id) weights = {};
+    raw = latest.payload; activeDatasetId = latest.id; model();
+    historyMonth = "all"; extractRange = "active"; extractMonth = ""; extractAnchor = ""; mapUF = "";
+    try { sessionStorage.setItem("asg-source", latest.source_name); } catch {}
     render();
   };
 }
@@ -233,63 +311,205 @@ function indicators() {
   return `<section class="panel full"><h2>Catálogo de indicadores</h2><p>Valores em suas unidades originais · clique para abrir os detalhes.</p><div class="toolbar"><input id="search" placeholder="Buscar nome ou código" value="${esc(search)}" aria-label="Buscar indicador"><button class="btn" id="searchbtn">Buscar</button></div>${indicatorTable(inds())}</section>`;
 }
 function crossings() {
-  return `<section class="panel full"><h2>Relações entre variáveis</h2><label>Origem da análise<select id="analysis-mode"><option value="suppliers" ${analysis.mode==="suppliers"?"selected":""}>Variáveis do mesmo fornecedor</option><option value="corporate" ${analysis.mode==="corporate"?"selected":""}>Indicadores corporativos E/S/G e econômicos</option></select></label><p>Todos os resultados respeitam o recorte ativo. Observações corporativas e de fornecedores são populações distintas.</p>${analysis.mode==="suppliers" ? `<div class="toolbar"><label>Eixo X<select id="x">${[[4,"Valor anual (R$ mil)"],[14,"Score ASG (0–100)"],[15,"Não conformidades (nº)"]].map(([v,t])=>`<option value="${v}" ${analysis.x===String(v)?"selected":""}>${t}</option>`).join("")}</select></label><label>Eixo Y<select id="y">${[[4,"Valor anual (R$ mil)"],[14,"Score ASG (0–100)"],[15,"Não conformidades (nº)"]].map(([v,t])=>`<option value="${v}" ${analysis.y===String(v)?"selected":""}>${t}</option>`).join("")}</select></label></div>` : `<label>Selecione dois ou mais indicadores (Ctrl ou seleção múltipla)<select id="cross-indicators" multiple size="7">${inds().map(i=>`<option value="${esc(i.id)}" ${analysis.indicators.includes(i.id)?"selected":""}>${esc(i.id+" · "+i.dim+" · "+i.name+" ("+i.unit+")")}</option>`).join("")}</select></label>`}<div class="toolbar"><button class="btn primary" id="cross">Gerar análise</button><button class="btn" id="savecross">Salvar análise</button></div><div id="crossresult"></div><h3>Análises salvas nesta sessão</h3><div id="saved"></div><p>Coeficientes são descritivos. Correlação não estabelece causalidade. Não são criados vínculos entre indicadores corporativos e fornecedores sem uma chave na fonte.</p></section>`;
+  return `<section class="panel full"><h2>Relações entre variáveis</h2><label>Origem da análise<select id="analysis-mode"><option value="suppliers" ${analysis.mode==="suppliers"?"selected":""}>Variáveis do mesmo fornecedor</option><option value="corporate" ${analysis.mode==="corporate"?"selected":""}>Indicadores corporativos E/S/G e econômicos</option></select></label><p>Todos os resultados respeitam o recorte ativo. Observações corporativas e de fornecedores são populações distintas.</p>${analysis.mode==="suppliers" ? `<div class="toolbar"><label>Eixo X<select id="x">${[[4,"Valor anual (R$ mil)"],[14,"Score ASG (0–100)"],[15,"Não conformidades (nº)"]].map(([v,t])=>`<option value="${v}" ${analysis.x===String(v)?"selected":""}>${t}</option>`).join("")}</select></label><label>Eixo Y<select id="y">${[[4,"Valor anual (R$ mil)"],[14,"Score ASG (0–100)"],[15,"Não conformidades (nº)"]].map(([v,t])=>`<option value="${v}" ${analysis.y===String(v)?"selected":""}>${t}</option>`).join("")}</select></label></div>` : `<div class="searchable-filter">${searchField("cross-indicators", "Digite nome ou código", "Buscar indicadores para cruzamento")}<label>Selecione dois ou mais indicadores (Ctrl ou seleção múltipla)<select id="cross-indicators" multiple size="7">${inds().map(i=>`<option value="${esc(i.id)}" ${analysis.indicators.includes(i.id)?"selected":""}>${esc(i.id+" · "+i.dim+" · "+i.name+" ("+i.unit+")")}</option>`).join("")}</select></label></div>`}<div class="toolbar"><button class="btn primary" id="cross">Gerar análise</button><button class="btn" id="savecross">Salvar análise</button></div><div id="crossresult"></div><h3>Análises salvas nesta sessão</h3><div id="saved"></div><p>Coeficientes são descritivos. Correlação não estabelece causalidade. Não são criados vínculos entre indicadores corporativos e fornecedores sem uma chave na fonte.</p></section>`;
 }
 
 function history() {
-  const datasets=ASG.snapshots(window.investAuth.datasets).filter(d=>d.reference_date<=params["Data-base"] && ASG.parameters(d.payload)["Organização (fictícia)"]===params["Organização (fictícia)"]);
-  const selected=inds();
+  const datasets=periodDatasets(historyMonth === "all" ? "all" : "month", historyMonth).filter(d => sameOrganization(d.payload));
+  const selected = historyIndicators(datasets);
+  const periodPicker = `<label>Data-base no histórico<select id="history-month"><option value="all">Todo o histórico disponível</option>${monthOptions(historyMonth)}</select></label><p>${datasets.length} datas-base disponíveis neste período.</p>`;
   let content;
   if (filters.period==="previous") content='<p>O comparativo armazenado não tem datas de início/fim ou metas históricas. Use o período atual para consultar retratos por data-base; o comparativo continua disponível nos detalhes de cada indicador.</p>';
+  else if (!datasets.length) content = '<p>Não há datas-base para o mês escolhido.</p>';
   else if(corporate()) {
     const chosen=selected.find(i=>i.id===historyIndicator)||selected[0];
     historyIndicator=chosen?.id||"";
-    content=`<label>Indicador em acompanhamento<select id="hist">${selected.map(i=>`<option value="${esc(i.id)}" ${i.id===historyIndicator?"selected":""}>${esc(i.id+" · "+i.name)}</option>`).join("")}</select></label><div id="histchart">${chosen?indicatorHistory(chosen.id,datasets):"Sem indicadores neste recorte."}</div><h3>Dimensões e índice corporativo por data-base</h3>${table(["DATA-BASE","AMBIENTAL","SOCIAL","GOVERNANÇA","ÍNDICE ASG"],datasets.map(d=>{const rs=ASG.indicators(d.payload,filters,search),p=ASG.parameters(d.payload);return `<tr><td>${esc(d.reference_date)}</td>${["Ambiental","Social","Governança",null].map(dim=>`<td>${num(ASG.score(rs.filter(r=>!dim||ASG.dims[r[26]]===dim),p))}</td>`).join("")}</tr>`;}))}<p>Pontuações por retrato usam os parâmetros e pesos daquele retrato, sem aplicar ajustes locais atuais ao passado. Uma única data-base não permite evolução.</p>`;
+    content=`<div class="searchable-filter">${searchField("hist", "Digite nome ou código", "Buscar indicador no histórico")}<label>Indicador em acompanhamento<select id="hist">${selected.map(i=>`<option value="${esc(i.id)}" ${i.id===historyIndicator?"selected":""}>${esc(i.id+" · "+i.name)}</option>`).join("")}</select></label></div><div id="histchart">${chosen?indicatorHistory(chosen.id,datasets):"Sem indicadores neste recorte."}</div><h3>Dimensões e índice corporativo por data-base</h3>${table(["DATA-BASE","PERÍODO DA FONTE","AMBIENTAL","SOCIAL","GOVERNANÇA","ÍNDICE ASG"],datasets.map(d=>{const rs=ASG.indicators(d.payload,filters,search),p=ASG.parameters(d.payload);return `<tr><td>${esc(d.reference_date)}</td><td>${esc(p["Período de referência"])}</td>${["Ambiental","Social","Governança",null].map(dim=>`<td>${num(ASG.score(rs.filter(r=>!dim||ASG.dims[r[26]]===dim),p))}</td>`).join("")}</tr>`;}))}<p>Pontuações por retrato usam os parâmetros e pesos daquele retrato, sem aplicar ajustes locais atuais ao passado. Uma única data-base não permite evolução.</p>`;
   } else {
     const selectedCompany=contracts.find(r=>r[0]===filters.company);
-    content=table(["DATA-BASE","EMPRESA","SCORE GERAL (0–100)","FONTE"],datasets.flatMap(d=>ASG.suppliers(d.payload,{...filters,search}).filter(r=>!selectedCompany||selectedCompany[1]===r[1]).map(r=>`<tr><td>${esc(d.reference_date)}</td><td>${esc(r[1])}</td><td>${num(r[14])}</td><td>${esc(d.source_name)}</td></tr>`)))+'<p>Mesmos identificador e nome contratual, respeitando setor e UF de cada retrato. Sem dimensões individuais. Sem períodos comparáveis adicionais, crescimento não calculável.</p>';
+    content=table(["DATA-BASE","PERÍODO DA FONTE","EMPRESA","SCORE GERAL (0–100)","FONTE"],datasets.flatMap(d=>ASG.suppliers(d.payload,{...filters,search}).filter(r=>!selectedCompany||selectedCompany[1]===r[1]).map(r=>`<tr><td>${esc(d.reference_date)}</td><td>${esc(ASG.parameters(d.payload)["Período de referência"])}</td><td>${esc(r[1])}</td><td>${num(r[14])}</td><td>${esc(d.source_name)}</td></tr>`)))+'<p>Mesmos identificador e nome contratual, respeitando setor e UF de cada retrato. Sem dimensões individuais. Sem períodos comparáveis adicionais, crescimento não calculável.</p>';
   }
-  return `<section class="panel full"><h2>Histórico até a data-base selecionada (${esc(params["Data-base"])})</h2>${content}<p>Retratos cronológicos não comprovam períodos equivalentes nem metodologia de score constante. Nenhuma linha de tendência ou taxa de crescimento é calculada sem essa confirmação.</p></section><section class="panel full"><h2>Histórico de importações e recuperação</h2><p>Data de importação e data-base são informações diferentes. Consultar uma versão não altera a base. Recuperar cria uma nova versão e preserva as demais.</p>${versionTable()}</section>`;
+  return `<section class="panel full"><h2>Histórico por data-base</h2>${periodPicker}${content}<p>Retratos cronológicos não comprovam períodos equivalentes nem metodologia de score constante. Nenhuma linha de tendência ou taxa de crescimento é calculada sem essa confirmação.</p></section><section class="panel full"><h2>Histórico de importações e recuperação</h2><p>Data de importação e data-base são informações diferentes. Consultar uma versão não altera a base. Recuperar cria uma nova versão e preserva as demais.</p>${versionTable()}</section>`;
 }
-function indicatorHistory(id, datasets = ASG.snapshots(window.investAuth.datasets).filter(d=>d.reference_date<=params["Data-base"])) {
-  const current=ind.find(i=>i.id===id);
-  if(!current)return '<p>Indicador não encontrado.</p>';
-  const rows=datasets.filter(d=>ASG.parameters(d.payload)["Organização (fictícia)"]===params["Organização (fictícia)"]).flatMap(d=>{
-    const r=ASG.indicators(d.payload,{...filters,indicator:id},search).find(r=>r[0]===id);
-    if(!r || r[4]!==current.unit || r[26]!==current.r[26])return [];
-    return [`<tr><td>${esc(d.reference_date)}</td><td>${fmt(current,r[10])}</td><td>${esc(d.source_name)}</td></tr>`];
-  });
-  return table(["DATA-BASE","VALOR ("+current.unit+")","FONTE"],rows)+trend(current);
+function sameOrganization(payload) {
+  return ASG.parameters(payload)["Organização (fictícia)"] === params["Organização (fictícia)"];
 }
 
+function historyIndicators(datasets) {
+  const choices = new Map();
+  for (const dataset of datasets.filter(d => sameOrganization(d.payload))) {
+    for (const row of ASG.indicators(dataset.payload, filters, search)) {
+      choices.set(row[0], {id: row[0], name: row[3], unit: row[4], dimension: row[26]});
+    }
+  }
+  return Array.from(choices.values());
+}
+
+function indicatorHistory(id, datasets = periodDatasets(historyMonth === "all" ? "all" : "month", historyMonth)) {
+  const current = historyIndicators(datasets).find(i => i.id === id);
+  if(!current)return '<p>Indicador não encontrado.</p>';
+  const rows=datasets.filter(d=>sameOrganization(d.payload)).flatMap(d=>{
+    const r=ASG.indicators(d.payload,{...filters,indicator:id},search).find(r=>r[0]===id);
+    if(!r || r[4]!==current.unit || r[26]!==current.dimension)return [];
+    return [`<tr><td>${esc(d.reference_date)}</td><td>${esc(ASG.parameters(d.payload)["Período de referência"])}</td><td>${fmt(current,r[10])}</td><td>${esc(d.source_name)}</td></tr>`];
+  });
+  return table(["DATA-BASE","PERÍODO DA FONTE","VALOR ("+current.unit+")","FONTE"],rows);
+}
+
+let ufMapPromise;
+const mapLegend = [
+  {label: "Sem registros", max: 0, color: "#e6eef8"},
+  {label: "Até 5%", max: 0.05, color: "#8db0de"},
+  {label: "Até 10%", max: 0.10, color: "#3f6baa"},
+  {label: "Até 20%", max: 0.20, color: "#2b5597"},
+  {label: "Acima de 20%", max: 1, color: "#16345f"},
+];
+
 function geography() {
-  let c = cs();
-  if(!c.length)return '<section class="panel full"><h2>Distribuição territorial</h2><p>Sem observações de fornecedores para os filtros e período selecionados. A fonte não informa municípios ou coordenadas.</p></section>';
-  return `<div class="grid"><section class="panel"><h2>Distribuição territorial por UF</h2><p>A base informa a UF dos fornecedores, sem município, região ou coordenadas. Mapa pontual indisponível.</p>${bars(group(c, 3))}</section><section class="panel"><h2>Recorte Piauí</h2><p>${c.filter((r) => r[3] === "PI").length} fornecedores com UF = PI no recorte selecionado.</p>${table(
-    ["FORNECEDOR", "CATEGORIA"],
-    c
-      .filter((r) => r[3] === "PI")
-      .map((r) => `<tr><td>${esc(r[1])}</td><td>${esc(r[2])}</td></tr>`),
-  )}<p>UF do fornecedor não indica localização dos projetos ou dos impactos ASG.</p></section></div>`;
+  const suppliers = cs();
+  if (!suppliers.length) return '<section class="panel full"><h2>Fornecedores por UF</h2><p>Sem observações de fornecedores para os filtros e período selecionados.</p></section>';
+  const counts = group(suppliers, 3);
+  if (!counts.some(([uf]) => uf === mapUF)) mapUF = "";
+  const visible = mapUF ? suppliers.filter(row => row[3] === mapUF) : suppliers;
+  return `<div class="grid"><section class="panel"><h2>Fornecedores por UF</h2>
+    <p>O azul indica a participação de cada UF no recorte. Selecione um estado para consultar seus fornecedores.</p>
+    <div id="supplier-map" aria-busy="true"><p role="status">Carregando mapa do Brasil…</p></div>
+    <div class="toolbar map-states" aria-label="Selecionar UF no mapa">
+      <button type="button" class="btn" data-map-uf="" aria-pressed="${!mapUF}">Todas as UFs</button>
+      ${counts.filter(([uf]) => /^[A-Z]{2}$/.test(uf)).map(([uf, count]) => `<button type="button" class="btn" data-map-uf="${esc(uf)}" aria-pressed="${mapUF === uf}">${esc(uf)} · ${count}</button>`).join("")}
+    </div><ul class="map-legend" aria-label="Escala de participação">${mapLegend.map(step => `<li><span aria-hidden="true" style="background:${step.color}"></span>${step.label}</li>`).join("")}</ul>${bars(counts)}</section>
+    <section class="panel"><h2>${mapUF ? "Fornecedores · " + esc(mapUF) : "Fornecedores no recorte"}</h2>
+    <p>${visible.length} de ${suppliers.length} fornecedores · ${num(100 * visible.length / suppliers.length)}% do recorte.</p>
+    ${table(["FORNECEDOR", "UF", "CATEGORIA"], visible.map(row => `<tr><td><a href="#" data-company="${esc(row[0])}">${esc(row[1])}</a></td><td>${esc(row[3])}</td><td>${esc(row[2])}</td></tr>`))}
+    <p>UF cadastrada para o fornecedor. A planilha não informa município nem local de execução do contrato.</p></section></div>`;
 }
+
+function bindSupplierMap(container) {
+  const suppliers = cs();
+  const counts = new Map(group(suppliers, 3));
+  const shade = count => mapLegend.find(step => count / suppliers.length <= step.max).color;
+  const choose = (uf, focusSource) => {
+    mapUF = uf;
+    render();
+    if (focusSource === "button") Array.from(document.querySelectorAll("[data-map-uf]"))
+      .find(button => button.dataset.mapUf === uf)?.focus();
+  };
+  document.querySelectorAll("[data-map-uf]").forEach(button => {
+    button.onclick = () => choose(button.dataset.mapUf, "button");
+  });
+  const request = ufMapPromise ??= fetch("brasil-uf.json").then(response => {
+    if (!response.ok) throw new Error("Mapa indisponível");
+    return response.json();
+  });
+  request.then(map => {
+    if (!container.isConnected) return;
+    container.innerHTML = `<svg class="uf-map" viewBox="${esc(map.viewBox)}" aria-label="Mapa do Brasil por unidade da federação">
+      ${map.states.map(({uf, name, path}) => {
+        const count = counts.get(uf) || 0;
+        const label = `${name} (${uf}): ${count} de ${suppliers.length} fornecedores (${num(100 * count / suppliers.length)}%)`;
+        return `<path d="${esc(path)}" fill="${shade(count)}" class="${uf === mapUF ? "selected" : ""}" ${count ? `data-map-state="${esc(uf)}" role="button" tabindex="0" aria-pressed="${uf === mapUF}" aria-label="${esc(label)}"` : ""}><title>${esc(label)}</title></path>`;
+      }).join("")}</svg><p class="muted">Limites estaduais · <a href="https://www.ibge.gov.br/geociencias/organizacao-do-territorio/estrutura-territorial/15774-malhas.html">Malha territorial do IBGE</a></p>`;
+    container.setAttribute("aria-busy", "false");
+    container.querySelectorAll("[data-map-state]").forEach(state => {
+      const activate = () => {
+        const uf = state.dataset.mapState;
+        choose(uf, "map");
+        request.then(() => {
+          Array.from(document.querySelectorAll("[data-map-state]"))
+            .find(path => path.dataset.mapState === uf)?.focus();
+        });
+      };
+      state.onclick = activate;
+      state.onkeydown = event => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        activate();
+      };
+    });
+  }).catch(() => {
+    if (ufMapPromise === request) ufMapPromise = null;
+    if (!container.isConnected) return;
+    container.setAttribute("aria-busy", "false");
+    container.textContent = "Mapa indisponível no momento. Use os botões de UF e a lista de fornecedores.";
+  });
+}
+
+const extractRanges = {
+  active: "Período atual do painel",
+  quarter: "Últimos 3 meses",
+  year: "Último ano",
+  threeYears: "Últimos 3 anos",
+  all: "Todo o histórico disponível",
+  month: "Mês e ano específicos",
+};
+
 function reports() {
-  return `<section class="panel full"><span class="eyebrow">EXTRATO ASG</span><h2 style="margin-top:12px">Informações para acompanhamento</h2><p>O extrato respeita os filtros de empresa, setor, UF, dimensão e período. Inclui fonte, metodologia e data de geração.</p><div class="toolbar"><button class="btn primary" id="pdf">Baixar PDF</button><button class="btn" id="excel">Exportar Excel</button><button class="btn" id="print">Imprimir</button></div><div id="report">${report()}</div></section>`;
+  return `<section class="panel full"><span class="eyebrow">EXTRATO ASG</span><h2>Informações para acompanhamento</h2>
+    <p>Os filtros do painel são mantidos. Cada data-base é apresentada separadamente, com o período informado na fonte.</p>
+    <div class="toolbar"><label>Período do extrato<select id="extract-range">${Object.entries(extractRanges).map(([key, label]) =>
+      `<option value="${key}" ${key === extractRange ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+      ${extractRange === "month" ? `<label>Mês e ano<select id="extract-month">${monthOptions(extractMonth)}</select></label>` : ""}
+    </div>
+    <div class="toolbar"><button class="btn primary" id="pdf">Baixar PDF</button><button class="btn" id="excel">Exportar Excel</button><button class="btn" id="print">Imprimir</button></div><div id="report">${report()}</div></section>`;
 }
-function extractData() {
+
+function extractData(dataset) {
+  const payload = dataset?.payload ?? raw;
+  const sourceParams = ASG.parameters(payload);
+  const selection = {...filters, search, period: dataset ? "current" : filters.period};
+  const localWeights = payload === raw ? weights : {};
+  const rows = ASG.indicators(payload, selection, search);
+  const current = selection.period === "current";
+  const selectedSupplier = contracts.find(row => row[0] === filters.company);
   return {
-    source:sessionStorage.getItem("asg-source") || "Painel_ASG_Compliance_Integridade_Completo.xlsx",
-    reference:params["Data-base"],
-    datasetId:activeDatasetId,
-    period:filters.period==="current"?params["Período de referência"]:"Comparativo da fonte · abrangência não informada",
-    filters:{...filters,search},
-    points:score(inds(),filters.period==="previous"),
-    indicators:inds().map(i=>[i.id,i.name,i.dim,i.unit,val(i),filters.period==="current"?i.target:null,filters.period==="current"?ASG.status(i.r):"Comparativo sem metas históricas",weights[i.id]??i.weight,i.r[23]]),
-    suppliers:cs().map(r=>r.slice()),
+    source: dataset?.source_name ?? (sessionStorage.getItem("asg-source") || "Painel_ASG_Compliance_Integridade_Completo.xlsx"),
+    reference: sourceParams["Data-base"],
+    datasetId: dataset?.id ?? activeDatasetId,
+    period: current ? sourceParams["Período de referência"] : "Comparativo da fonte · abrangência não informada",
+    filters: selection,
+    companyName: filters.company === "aurora" ? sourceParams["Organização (fictícia)"]
+      : (selectedSupplier?.[1] ?? (filters.company || "Visão coletiva")),
+    points: current ? ASG.score(rows, sourceParams, localWeights) : null,
+    statusPoints: {Atende: sourceParams.Atende, Atenção: sourceParams["Atenção"], Crítico: sourceParams["Crítico"]},
+    localWeights,
+    indicators: rows.map(row => [row[0], row[3], ASG.dims[row[26]] || "Validar classificação",
+      row[4], current ? row[10] : row[11], current ? row[13] : null,
+      current ? ASG.status(row) : "Comparativo sem metas históricas", localWeights[row[0]] ?? row[19], row[23]]),
+    supplierHeader: payload.Contratos_ASG[3],
+    suppliers: ASG.suppliers(payload, selection).filter(row =>
+      !dataset || !selectedSupplier || selectedSupplier[1] === row[1]),
   };
 }
+
+function extractSections() {
+  if (extractRange === "active") return [extractData()];
+  return periodDatasets(extractRange, extractMonth, extractAnchor || params["Data-base"])
+    .filter(dataset => sameOrganization(dataset.payload)).map(dataset => extractData(dataset));
+}
+
+function extractScope(data) {
+  const f = data?.filters ?? {...filters, search};
+  return `Empresa: ${data?.companyName ?? (f.company || "Visão coletiva")} · Cidade: ${f.city || "Não informada na base"} · Setor: ${f.sector || "Todos"} · UF: ${f.uf || "Todas"} · Dimensão: ${f.dim || "Todas"} · Indicador: ${f.indicator || "Todos"} · Busca: ${f.search || "Sem busca"}`;
+}
+
+function extractSummary(sections) {
+  const count = sections.length;
+  const range = extractRange === "month" && extractMonth ? monthName(extractMonth) : extractRanges[extractRange];
+  const anchored = ["quarter", "year", "threeYears"].includes(extractRange);
+  return `${range}${anchored ? " · até " + (extractAnchor || params["Data-base"]) : ""} · ${count === 1 ? "1 data-base disponível" : count + " datas-base disponíveis"}`;
+}
+
 function report() {
-  const data=extractData();
-  return `<h2>Extrato ASG</h2><p>Gerado em ${new Date().toLocaleString("pt-BR")} · Fonte: ${esc(data.source)}<br>Período: ${esc(data.period)} · Data-base: ${esc(data.reference)}<br>Empresa: ${esc(filters.company||"Visão coletiva")} · Cidade: ${esc(filters.city||"Não informada na base")} · Setor: ${esc(filters.sector||"Todos")} · UF: ${esc(filters.uf||"Todas")} · Dimensão: ${esc(filters.dim||"Todas")} · Indicador: ${esc(filters.indicator||"Todos")} · Busca: ${esc(search||"Sem busca")}</p><p>Pontuação corporativa: ${num(data.points)} / 100. Pontos por status e pesos da fonte; ajustes locais de peso: ${Object.keys(weights).length?"sim":"não"}. Ausências excluídas; sem metas históricas, pontuação histórica não calculável.</p>${indicatorTable(inds())}<h3>Fornecedores no mesmo recorte</h3>${table(["EMPRESA","UF","VALOR ANUAL (R$ MIL)","SCORE GERAL (0–100)"],data.suppliers.map(r=>`<tr><td>${esc(r[1])}</td><td>${esc(r[3])}</td><td>${num(r[4])}</td><td>${num(r[14])}</td></tr>`))}<p>Não há indicadores corporativos individuais de fornecedores, observações de fornecedores no comparativo, municípios nem scores E/S/G por fornecedor. Esses dados não são extrapolados. Comparação e crescimento requerem períodos equivalentes.</p>`;
+  const sections = extractSections();
+  return `<h2>Extrato ASG</h2><p>${esc(extractSummary(sections))}</p><p>Gerado em ${new Date().toLocaleString("pt-BR")}</p><p>${esc(extractScope(sections[0]))}</p>
+    ${sections.map(data => `<section class="extract-snapshot"><h3>${esc(data.reference)} · ${esc(data.period)}</h3>
+      <p>Fonte: ${esc(data.source)} · Pontuação corporativa: ${num(data.points)} / 100. Ajustes locais de peso: ${Object.keys(data.localWeights).length ? "sim" : "não"}.</p>
+      ${extractRange === "active" ? indicatorTable(inds()) : table(["INDICADOR","DIMENSÃO","RESULTADO","META","STATUS"], data.indicators.map(row =>
+        `<tr><td>${esc(row[0] + " · " + row[1])}</td><td>${esc(row[2])}</td><td>${fmt({unit: row[3]}, row[4])}</td><td>${fmt({unit: row[3]}, row[5])}</td><td>${badge(row[6])}</td></tr>`))}
+      <h4>Fornecedores no mesmo recorte</h4>${table(["EMPRESA","UF","VALOR ANUAL (R$ MIL)","SCORE GERAL (0–100)"],data.suppliers.map(row =>
+        `<tr><td>${esc(row[1])}</td><td>${esc(row[3])}</td><td>${num(row[4])}</td><td>${num(row[14])}</td></tr>`))}</section>`).join("")}
+    ${sections.length ? "" : "<p>Não há datas-base para o período solicitado.</p>"}
+    <p>Pontos por status e pesos da fonte. Ausências não equivalem a zero. As notas por dimensão são corporativas. Comparação e crescimento requerem períodos equivalentes.</p>`;
 }
 
 function versionTable() {
@@ -377,11 +597,22 @@ function saved() {
 }
 
 function exportWorkbook() {
-  const data=extractData(),wb=XLSX.utils.book_new();
-  const meta=[["Extrato ASG"],["Fonte",data.source],["Data-base",data.reference],["Identificador da versão",data.datasetId],["Período",data.period],["Gerado em",new Date().toISOString()],["Filtros",JSON.stringify(data.filters)],["Pontuação corporativa",data.points],["Pontos por status",JSON.stringify({Atende:params.Atende,Atenção:params["Atenção"],Crítico:params["Crítico"]})],["Pesos locais",JSON.stringify(weights)],["Limite","Comparativo sem abrangência temporal confirmada; sem ranking; ausências não equivalem a zero."]];
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(meta),"Contexto");
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["ID","Indicador","Dimensão","Unidade","Valor no período","Meta do período","Status","Peso diagnóstico atual","Origem"],...data.indicators]),"Indicadores");
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([raw.Contratos_ASG[3],...data.suppliers]),"Fornecedores");
+  const sections = extractSections(), wb = XLSX.utils.book_new();
+  const context = [["Extrato ASG"], ["Recorte", extractSummary(sections)], ["Gerado em", new Date().toISOString()],
+    ["Filtros", extractScope(sections[0])], ["Limite", "Comparações exigem períodos equivalentes; ausências não equivalem a zero."],
+    ["Data-base", "Período da fonte", "Fonte", "Versão", "Pontuação corporativa", "Pontos por status", "Pesos locais"],
+    ...sections.map(data => [data.reference, data.period, data.source, data.datasetId, data.points,
+      JSON.stringify(data.statusPoints), JSON.stringify(data.localWeights)])];
+  const periodColumns = ["Data-base", "Período da fonte"];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(context), "Contexto");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ["ID","Indicador","Dimensão","Unidade","Valor no período","Meta do período","Status","Peso diagnóstico","Origem",...periodColumns],
+    ...sections.flatMap(data => data.indicators.map(row => [...row, data.reference, data.period])),
+  ]), "Indicadores");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    [...(sections[0]?.supplierHeader ?? raw.Contratos_ASG[3]), ...periodColumns],
+    ...sections.flatMap(data => data.suppliers.map(row => [...row, data.reference, data.period])),
+  ]), "Fornecedores");
   return wb;
 }
 let pdfLibraryPromise;
@@ -394,8 +625,10 @@ async function loadPdfLibrary() {
   return pdfLibraryPromise;
 }
 async function createPdfBytes() {
+  const sections = extractSections();
+  const summary = extractSummary(sections);
+  const scope = extractScope(sections[0]);
   await loadPdfLibrary();
-  const data=extractData();
   const pdf=await PDFLib.PDFDocument.create();
   const font=await pdf.embedFont(PDFLib.StandardFonts.Helvetica);
   const bold=await pdf.embedFont(PDFLib.StandardFonts.HelveticaBold);
@@ -416,24 +649,29 @@ async function createPdfBytes() {
     if(current)draw();y-=3;
   };
   line("INVEST PI - Extrato ASG",true);
-  line("Fonte: "+data.source);
-  line("Versão: "+(data.datasetId||"não informada")+" | Data-base: "+data.reference);
-  line("Período: "+data.period);
-  line("Gerado em "+new Date().toLocaleString("pt-BR"));
-  line("Empresa: "+(filters.company||"Visão coletiva")+" | Setor: "+(filters.sector||"Todos")+" | UF: "+(filters.uf||"Todas"));
-  line("Cidade: "+(filters.city||"não informada na fonte")+" | Dimensão: "+(filters.dim||"Todas")+" | Indicador: "+(filters.indicator||"Todos")+" | Busca: "+(search||"sem busca"));
-  line("Pontuação corporativa: "+num(data.points)+" / 100. Pontos por status em Parâmetros: "+num(params.Atende)+", "+num(params["Atenção"])+", "+num(params["Crítico"])+". Pesos locais: "+JSON.stringify(weights));
-  line("Indicadores no período",true);
-  if(!data.indicators.length)line("Sem dados para esta seleção.");
-  for(const r of data.indicators){
-    const i=ind.find(i=>i.id===r[0]);
-    line(r[0]+" - "+r[1],true);
-    line("Dimensão: "+r[2]+" | Unidade: "+r[3]+" | Resultado: "+fmt(i,r[4])+" | Meta: "+(r[5]==null?"não informada":fmt(i,r[5]))+" | Status: "+r[6]);
-    line("Peso: "+num(r[7])+" | Origem: "+(r[8]||"não informada"));
+  line(summary);
+  line("Gerado em " + new Date().toLocaleString("pt-BR"));
+  line(scope);
+  if (!sections.length) line("Não há datas-base para o período solicitado.");
+  for (const data of sections) {
+    line(data.reference + " | " + data.period, true);
+    line("Fonte: " + data.source + " | Versão: " + (data.datasetId || "não informada"));
+    line("Pontuação corporativa: " + num(data.points) + " / 100. Pontos por status: " + JSON.stringify(data.statusPoints));
+    if (Object.keys(data.localWeights).length) line("Pesos locais: " + JSON.stringify(data.localWeights));
+    line("Indicadores no período", true);
+    if (!data.indicators.length) line("Sem dados para esta seleção.");
+    for (const row of data.indicators) {
+      const unit = {unit: row[3]};
+      line(row[0] + " - " + row[1], true);
+      line("Dimensão: " + row[2] + " | Unidade: " + row[3] + " | Resultado: " + fmt(unit, row[4])
+        + " | Meta: " + fmt(unit, row[5]) + " | Status: " + row[6]);
+      line("Peso: " + num(row[7]) + " | Origem: " + (row[8] || "não informada"));
+    }
+    line("Fornecedores no mesmo recorte", true);
+    if (!data.suppliers.length) line("Sem dados para esta seleção.");
+    for (const row of data.suppliers) line(row[0] + " - " + row[1] + " | UF: " + row[3]
+      + " | Valor anual (R$ mil): " + num(row[4]) + " | Score geral (0-100): " + num(row[14]));
   }
-  line("Fornecedores no mesmo recorte",true);
-  if(!data.suppliers.length)line("Sem dados para esta seleção.");
-  for(const r of data.suppliers)line(r[0]+" - "+r[1]+" | UF: "+r[3]+" | Valor anual (R$ mil): "+num(r[4])+" | Score geral (0-100): "+num(r[14]));
   line("Limitações",true);
   line("Ausências não equivalem a zero. Sem metas históricas, pontuação histórica não calculável. Não há municípios, notas E/S/G individuais por fornecedor ou períodos comparativos equivalentes confirmados. Não há ranking. Correlação não é causalidade.");
   const total=pdf.getPageCount();pdf.getPages().forEach((p,i)=>p.drawText("INVEST PI | "+(i+1)+" / "+total,{x:40,y:25,size:8,font}));
@@ -447,10 +685,42 @@ async function exportPdf() {
 function exportExcel() { XLSX.writeFile(exportWorkbook(),"Extrato_ASG.xlsx"); }
 
 function bind() {
+  bindSelectSearch();
+  if (page === 6 && $("#supplier-map")) bindSupplierMap($("#supplier-map"));
+  if (page === 5 && $("#history-month")) $("#history-month").onchange = event => {
+    historyMonth = event.target.value;
+    render();
+    $("#history-month").focus();
+  };
+  if (page === 7 && $("#extract-range")) $("#extract-range").onchange = event => {
+    extractRange = event.target.value;
+    if (extractRange === "month" && !extractMonth) extractMonth = params["Data-base"].slice(0, 7);
+    render();
+    $("#extract-range").focus();
+  };
+  if (page === 7 && $("#extract-month")) $("#extract-month").onchange = event => {
+    extractMonth = event.target.value;
+    extractAnchor = periodDatasets("month", extractMonth)
+      .filter(dataset => sameOrganization(dataset.payload)).at(-1)?.reference_date ?? "";
+    render();
+    $("#extract-month").focus();
+  };
   document.querySelectorAll("[data-page]").forEach(
     (b) =>
       (b.onclick = () => {
-        page = +b.dataset.page;
+        const nextPage = +b.dataset.page;
+        if (page !== 7 && nextPage === 7) {
+          extractRange = "active";
+          extractMonth = "";
+          extractAnchor = "";
+          if (page === 5 && filters.period !== "previous") {
+            extractRange = historyMonth === "all" ? "all" : "month";
+            extractMonth = historyMonth === "all" ? "" : historyMonth;
+            extractAnchor = periodDatasets("month", extractMonth)
+              .filter(dataset => sameOrganization(dataset.payload)).at(-1)?.reference_date ?? "";
+          }
+        }
+        page = nextPage;
         render();
         window.scrollTo(0, 0);
       }),
@@ -571,12 +841,14 @@ async function commitDataset(data,name) {
   ASG.validate(data);
   if(typeof name!=="string" || !name.trim() || name.length>255)throw Error("O nome da fonte deve ter entre 1 e 255 caracteres.");
   await window.investAuth.saveDataset(data,name);
-  raw=window.investAuth.datasets[0].payload;activeDatasetId=window.investAuth.datasets[0].id;
+  const latest = latestDataset();
+  raw = latest.payload; activeDatasetId = latest.id;
   versions=window.investAuth.datasets.slice(1).map(v=>({at:v.created_at,name:v.source_name,data:v.payload}));
-  try{sessionStorage.setItem("asg-source",name);}catch{}
+  try{sessionStorage.setItem("asg-source", latest.source_name);}catch{}
   model(); pending=null;
   filters={company:"",sector:"",uf:"",city:"",dim:"",indicator:"",period:"current"};
   search="";weights={};
+  historyMonth = "all"; extractRange = "active"; extractMonth = ""; extractAnchor = ""; mapUF = "";
   try{sessionStorage.removeItem("asg-weights");}catch{}
   render();
 }
@@ -648,14 +920,15 @@ const roleName = {
 $("#role").value = roleName[window.investAuth.profile.role] || "Visualizador";
 $("#role").disabled = true;
 try {
-  raw = window.investAuth.datasets[0].payload;
-  activeDatasetId=window.investAuth.datasets[0].id;
+  const latest = latestDataset();
+  raw = latest.payload;
+  activeDatasetId = latest.id;
   if(sessionStorage.getItem("asg-weight-context")!==activeDatasetId)weights={};
   ASG.validate(raw);
   versions = window.investAuth.datasets
     .slice(1)
     .map((v) => ({ at: v.created_at, name: v.source_name, data: v.payload }));
-  try { sessionStorage.setItem("asg-source",window.investAuth.datasets[0].source_name); } catch {}
+  try { sessionStorage.setItem("asg-source", latest.source_name); } catch {}
   model();
   render();
 } catch (e) {
