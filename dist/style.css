@@ -340,6 +340,14 @@ label {
   color: var(--muted);
 }
 
+/* Rótulos e seus controles ficam visualmente separados nos painéis. */
+.panel > label,
+.toolbar > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+
 #filters label {
   display: flex;
   flex-direction: column;
@@ -1014,16 +1022,59 @@ tr.clickable:focus-visible {
 }
 
 .searchable-filter {
+  position: relative;
   display: grid;
   align-content: start;
   gap: 5px;
   min-width: 0;
 }
 
-.searchable-filter input,
-.searchable-filter select {
+.searchable-filter input {
   width: 100%;
   min-width: 0;
+}
+
+.searchable-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.search-options {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% - 20px);
+  right: 0;
+  left: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--field);
+  border-radius: 8px;
+  background: white;
+  box-shadow: var(--shadow);
+}
+
+.search-option {
+  display: block;
+  width: 100%;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-option:hover,
+.search-option:focus-visible,
+.search-option[aria-selected="true"] {
+  background: var(--blue-100);
+  color: var(--blue-900);
 }
 
 .choice-feedback:empty {
@@ -1052,9 +1103,14 @@ tr.clickable:focus-visible {
   cursor: pointer;
 }
 
-.uf-map [data-map-state]:hover,
-.uf-map .selected {
+.uf-map [data-map-state]:hover {
   stroke: var(--blue-900);
+  stroke-width: 2.5;
+  paint-order: fill stroke;
+}
+
+.uf-map .selected {
+  stroke: #c62828;
   stroke-width: 2.5;
   paint-order: fill stroke;
 }

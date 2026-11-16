@@ -83,35 +83,58 @@ function normalizedSearch(value) {
   return value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("pt-BR").trim();
 }
 
-function searchField(id, placeholder, label) {
-  return `<input type="search" data-search-select="${id}" placeholder="${placeholder}" aria-label="${label}"><small class="choice-feedback" role="status"></small>`;
+function searchableSelect({id, label, placeholder, optionHtml, attributes = "", multiple = false}) {
+  return `<div class="searchable-filter"><label for="${id}-search">${label}</label><input id="${id}-search" type="search" placeholder="${placeholder}" autocomplete="off" data-search-select="${id}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="${id}-options"><div id="${id}-options" class="search-options" role="listbox" hidden></div><select id="${id}" class="searchable-native" ${multiple ? "multiple" : ""} ${attributes}>${optionHtml}</select><small class="choice-feedback" role="status"></small></div>`;
 }
 
 function bindSelectSearch() {
   document.querySelectorAll("[data-search-select]").forEach(input => {
     const select = $("#" + input.dataset.searchSelect);
-    const original = Array.from(select.options);
-    const feedback = input.nextElementSibling;
-    let matches = original;
-    input.oninput = () => {
+    const list = $("#" + select.id + "-options");
+    // Compatibilidade com integrações que ainda fornecem apenas input + select.
+    if (!list || !document.createElement) {
+      const original = Array.from(select.options), feedback = input.nextElementSibling;
+      input.oninput = () => {
+        const query = normalizedSearch(input.value), selected = Array.from(select.selectedOptions, option => option.value);
+        const matches = original.filter(option => normalizedSearch(option.text).includes(query));
+        const visible = query ? original.filter(option => matches.includes(option) || selected.includes(option.value)) : original;
+        select.replaceChildren(...visible);
+        for (const option of visible) option.selected = selected.includes(option.value);
+        if (feedback) feedback.textContent = query ? (matches.length ? `${matches.length} opções encontradas` : "Nenhuma opção encontrada") : "";
+      };
+      return;
+    }
+    const feedback = select.parentElement?.querySelector?.(".choice-feedback") || input.nextElementSibling || {textContent:""};
+    const original = Array.from(select.options).map(option => ({value: option.value, text: option.text}));
+    const syncInput = () => { if (!select.multiple) input.value = Array.from(select.selectedOptions, option => option.text).join(", "); };
+    const close = () => { list.hidden = true; input.setAttribute("aria-expanded", "false"); feedback.textContent = ""; };
+    const renderOptions = () => {
       const query = normalizedSearch(input.value);
+      const matches = original.filter(option => normalizedSearch(option.text).includes(query));
       const selected = Array.from(select.selectedOptions, option => option.value);
-      matches = original.filter(option => normalizedSearch(option.text).includes(query));
-      const visible = query ? original.filter(option => matches.includes(option) || selected.includes(option.value)) : original;
-      select.replaceChildren(...visible);
-      for (const option of visible) option.selected = selected.includes(option.value);
-      feedback.textContent = query ? (matches.length ? `${matches.length} opções encontradas` : "Nenhuma opção encontrada") : "";
+      list.replaceChildren(...matches.map(option => {
+        const item = document.createElement("button");
+        item.type = "button"; item.className = "search-option"; item.setAttribute("role", "option");
+        item.setAttribute("aria-selected", String(selected.includes(option.value))); item.textContent = option.text;
+        item.onclick = () => {
+          if (select.multiple) Array.from(select.options).find(candidate => candidate.value === option.value).selected = !selected.includes(option.value);
+          else select.value = option.value;
+          select.dispatchEvent(new Event("change", {bubbles: true})); syncInput();
+          if (select.multiple) renderOptions(); else close();
+        };
+        return item;
+      }));
+      list.hidden = false; input.setAttribute("aria-expanded", "true");
+      feedback.textContent = matches.length ? `${matches.length} opções encontradas` : "Nenhuma opção encontrada";
     };
+    syncInput();
+    input.onfocus = () => { if (!select.multiple) input.value = ""; renderOptions(); };
+    input.oninput = renderOptions;
     input.onkeydown = event => {
-      if (event.key !== "Enter" && event.key !== "ArrowDown") return;
-      event.preventDefault();
-      if (event.key === "Enter" && !select.multiple && normalizedSearch(input.value) && matches.length === 1) {
-        select.value = matches[0].value;
-        select.dispatchEvent(new Event("change", {bubbles: true}));
-        return;
-      }
-      select.focus();
+      if (event.key === "Escape") { close(); input.blur(); }
+      if (event.key === "Enter") { const first = list.querySelector(".search-option"); if (first) { event.preventDefault(); first.click(); } }
     };
+    input.onblur = () => setTimeout(() => { if (!list.contains(document.activeElement)) { syncInput(); close(); } }, 120);
   });
 }
 let analysis = { mode: "suppliers", x: "4", y: "14", indicators: [] };
@@ -161,12 +184,12 @@ function controls() {
   const latest = latestDataset();
   const label = ASG.parameters(latest.payload)["Período de referência"];
   const past = ASG.snapshots(window.investAuth.datasets).filter(d=>d.id!==latest.id).reverse();
-  $("#filters").innerHTML = `<div class="searchable-filter">${searchField("filter-company", "Digite parte do nome", "Buscar empresa") }<label>Empresa / entidade<select id="filter-company" data-filter="company"><option value="">Visão coletiva</option><option value="aurora" ${filters.company === "aurora" ? "selected" : ""}>${esc(params["Organização (fictícia)"])}</option>${companyOptions}${filters.company && filters.company !== "aurora" && !companies.some(r=>r[0]===filters.company) ? `<option value="${esc(filters.company)}" selected>Seleção sem correspondência (${esc(filters.company)})</option>` : ""}</select></label></div>
-    <div class="searchable-filter">${searchField("filter-sector", "Digite parte do setor", "Buscar setor")}<label>Setor do fornecedor<select id="filter-sector" data-filter="sector">${options([...available("sector").map(r=>r[2]),filters.sector],filters.sector)}</select></label></div>
+  $("#filters").innerHTML = `${searchableSelect({id:"filter-company", label:"Empresa / entidade", placeholder:"Digite parte do nome", attributes:'data-filter="company"', optionHtml:`<option value="">Visão coletiva</option><option value="aurora" ${filters.company === "aurora" ? "selected" : ""}>${esc(params["Organização (fictícia)"])}</option>${companyOptions}${filters.company && filters.company !== "aurora" && !companies.some(r=>r[0]===filters.company) ? `<option value="${esc(filters.company)}" selected>Seleção sem correspondência (${esc(filters.company)})</option>` : ""}`})}
+    ${searchableSelect({id:"filter-sector", label:"Setor do fornecedor", placeholder:"Digite parte do setor", attributes:'data-filter="sector"', optionHtml:options([...available("sector").map(r=>r[2]),filters.sector],filters.sector)})}
     <label>UF do fornecedor<select data-filter="uf">${options([...available("uf").map(r=>r[3]),filters.uf],filters.uf)}</select></label>
     <label>Cidade<select disabled aria-describedby="city-help"><option>Não informada na base</option></select></label>
     <label>Dimensão<select data-filter="dim">${options(["Ambiental","Social","Governança","Validar classificação"],filters.dim)}</select></label>
-    <div class="searchable-filter">${searchField("filter-indicator", "Digite nome ou código", "Buscar opção de indicador")}<label>Indicador corporativo<select id="filter-indicator" data-filter="indicator"><option value="">Todos</option>${ind.filter(i=>!filters.dim || i.dim===filters.dim || i.id===filters.indicator).map(i=>`<option value="${esc(i.id)}" ${filters.indicator===i.id ? "selected" : ""}>${esc(i.id+" · "+i.name)}</option>`).join("")}</select></label></div>
+    ${searchableSelect({id:"filter-indicator", label:"Indicador corporativo", placeholder:"Digite nome ou código", attributes:'data-filter="indicator"', optionHtml:`<option value="">Todos</option>${ind.filter(i=>!filters.dim || i.dim===filters.dim || i.id===filters.indicator).map(i=>`<option value="${esc(i.id)}" ${filters.indicator===i.id ? "selected" : ""}>${esc(i.id+" · "+i.name)}</option>`).join("")}`})}
     <label>Período<select data-filter="period"><option value="current" ${filters.period==="current" && activeDatasetId===latest.id?"selected":""}>${esc(label)} · versão mais recente</option>${past.map(d=>`<option value="snapshot:${esc(d.id)}" ${filters.period==="current" && activeDatasetId===d.id?"selected":""}>${esc(d.reference_date+" · "+d.source_name)}</option>`).join("")}<option value="previous" ${filters.period==="previous"?"selected":""}>Comparativo da fonte · abrangência não informada</option></select></label>
     <button class="btn" id="clear">Limpar</button><small id="city-help">A fonte não informa municípios. Filtros de fornecedor não atribuem indicadores corporativos a empresas individuais.${search ? " Busca de indicador ativa: "+esc(search)+". Use Limpar para remover." : ""}</small>`;
   document.querySelectorAll("[data-filter]").forEach(e => e.onchange = () => {
@@ -311,7 +334,8 @@ function indicators() {
   return `<section class="panel full"><h2>Catálogo de indicadores</h2><p>Valores em suas unidades originais · clique para abrir os detalhes.</p><div class="toolbar"><input id="search" placeholder="Buscar nome ou código" value="${esc(search)}" aria-label="Buscar indicador"><button class="btn" id="searchbtn">Buscar</button></div>${indicatorTable(inds())}</section>`;
 }
 function crossings() {
-  return `<section class="panel full"><h2>Relações entre variáveis</h2><label>Origem da análise<select id="analysis-mode"><option value="suppliers" ${analysis.mode==="suppliers"?"selected":""}>Variáveis do mesmo fornecedor</option><option value="corporate" ${analysis.mode==="corporate"?"selected":""}>Indicadores corporativos E/S/G e econômicos</option></select></label><p>Todos os resultados respeitam o recorte ativo. Observações corporativas e de fornecedores são populações distintas.</p>${analysis.mode==="suppliers" ? `<div class="toolbar"><label>Eixo X<select id="x">${[[4,"Valor anual (R$ mil)"],[14,"Score ASG (0–100)"],[15,"Não conformidades (nº)"]].map(([v,t])=>`<option value="${v}" ${analysis.x===String(v)?"selected":""}>${t}</option>`).join("")}</select></label><label>Eixo Y<select id="y">${[[4,"Valor anual (R$ mil)"],[14,"Score ASG (0–100)"],[15,"Não conformidades (nº)"]].map(([v,t])=>`<option value="${v}" ${analysis.y===String(v)?"selected":""}>${t}</option>`).join("")}</select></label></div>` : `<div class="searchable-filter">${searchField("cross-indicators", "Digite nome ou código", "Buscar indicadores para cruzamento")}<label>Selecione dois ou mais indicadores (Ctrl ou seleção múltipla)<select id="cross-indicators" multiple size="7">${inds().map(i=>`<option value="${esc(i.id)}" ${analysis.indicators.includes(i.id)?"selected":""}>${esc(i.id+" · "+i.dim+" · "+i.name+" ("+i.unit+")")}</option>`).join("")}</select></label></div>`}<div class="toolbar"><button class="btn primary" id="cross">Gerar análise</button><button class="btn" id="savecross">Salvar análise</button></div><div id="crossresult"></div><h3>Análises salvas nesta sessão</h3><div id="saved"></div><p>Coeficientes são descritivos. Correlação não estabelece causalidade. Não são criados vínculos entre indicadores corporativos e fornecedores sem uma chave na fonte.</p></section>`;
+  const corporatePicker = searchableSelect({id:"cross-indicators", label:"Selecione dois ou mais indicadores", placeholder:"Digite nome ou código", multiple:true, optionHtml:inds().map(i=>`<option value="${esc(i.id)}" ${analysis.indicators.includes(i.id)?"selected":""}>${esc(i.id+" · "+i.dim+" · "+i.name+" ("+i.unit+")")}</option>`).join("")});
+  return `<section class="panel full"><h2>Relações entre variáveis</h2><label>Origem da análise<select id="analysis-mode"><option value="suppliers" ${analysis.mode==="suppliers"?"selected":""}>Variáveis do mesmo fornecedor</option><option value="corporate" ${analysis.mode==="corporate"?"selected":""}>Indicadores corporativos E/S/G e econômicos</option></select></label><p>Todos os resultados respeitam o recorte ativo. Observações corporativas e de fornecedores são populações distintas.</p>${analysis.mode==="suppliers" ? `<div class="toolbar"><label>Eixo X<select id="x">${[[4,"Valor anual (R$ mil)"],[14,"Score ASG (0–100)"],[15,"Não conformidades (nº)"]].map(([v,t])=>`<option value="${v}" ${analysis.x===String(v)?"selected":""}>${t}</option>`).join("")}</select></label><label>Eixo Y<select id="y">${[[4,"Valor anual (R$ mil)"],[14,"Score ASG (0–100)"],[15,"Não conformidades (nº)"]].map(([v,t])=>`<option value="${v}" ${analysis.y===String(v)?"selected":""}>${t}</option>`).join("")}</select></label></div>` : corporatePicker}<div class="toolbar"><button class="btn primary" id="cross">Gerar análise</button><button class="btn" id="savecross">Salvar análise</button></div><div id="crossresult"></div><h3>Análises salvas nesta sessão</h3><div id="saved"></div><p>Coeficientes são descritivos. Correlação não estabelece causalidade. Não são criados vínculos entre indicadores corporativos e fornecedores sem uma chave na fonte.</p></section>`;
 }
 
 function history() {
@@ -324,7 +348,7 @@ function history() {
   else if(corporate()) {
     const chosen=selected.find(i=>i.id===historyIndicator)||selected[0];
     historyIndicator=chosen?.id||"";
-    content=`<div class="searchable-filter">${searchField("hist", "Digite nome ou código", "Buscar indicador no histórico")}<label>Indicador em acompanhamento<select id="hist">${selected.map(i=>`<option value="${esc(i.id)}" ${i.id===historyIndicator?"selected":""}>${esc(i.id+" · "+i.name)}</option>`).join("")}</select></label></div><div id="histchart">${chosen?indicatorHistory(chosen.id,datasets):"Sem indicadores neste recorte."}</div><h3>Dimensões e índice corporativo por data-base</h3>${table(["DATA-BASE","PERÍODO DA FONTE","AMBIENTAL","SOCIAL","GOVERNANÇA","ÍNDICE ASG"],datasets.map(d=>{const rs=ASG.indicators(d.payload,filters,search),p=ASG.parameters(d.payload);return `<tr><td>${esc(d.reference_date)}</td><td>${esc(p["Período de referência"])}</td>${["Ambiental","Social","Governança",null].map(dim=>`<td>${num(ASG.score(rs.filter(r=>!dim||ASG.dims[r[26]]===dim),p))}</td>`).join("")}</tr>`;}))}<p>Pontuações por retrato usam os parâmetros e pesos daquele retrato, sem aplicar ajustes locais atuais ao passado. Uma única data-base não permite evolução.</p>`;
+    content=`${searchableSelect({id:"hist", label:"Indicador em acompanhamento", placeholder:"Digite nome ou código", optionHtml:selected.map(i=>`<option value="${esc(i.id)}" ${i.id===historyIndicator?"selected":""}>${esc(i.id+" · "+i.name)}</option>`).join("")})}<div id="histchart">${chosen?indicatorHistory(chosen.id,datasets):"Sem indicadores neste recorte."}</div><h3>Dimensões e índice corporativo por data-base</h3>${table(["DATA-BASE","PERÍODO DA FONTE","AMBIENTAL","SOCIAL","GOVERNANÇA","ÍNDICE ASG"],datasets.map(d=>{const rs=ASG.indicators(d.payload,filters,search),p=ASG.parameters(d.payload);return `<tr><td>${esc(d.reference_date)}</td><td>${esc(p["Período de referência"])}</td>${["Ambiental","Social","Governança",null].map(dim=>`<td>${num(ASG.score(rs.filter(r=>!dim||ASG.dims[r[26]]===dim),p))}</td>`).join("")}</tr>`;}))}<p>Pontuações por retrato usam os parâmetros e pesos daquele retrato, sem aplicar ajustes locais atuais ao passado. Uma única data-base não permite evolução.</p>`;
   } else {
     const selectedCompany=contracts.find(r=>r[0]===filters.company);
     content=table(["DATA-BASE","PERÍODO DA FONTE","EMPRESA","SCORE GERAL (0–100)","FONTE"],datasets.flatMap(d=>ASG.suppliers(d.payload,{...filters,search}).filter(r=>!selectedCompany||selectedCompany[1]===r[1]).map(r=>`<tr><td>${esc(d.reference_date)}</td><td>${esc(ASG.parameters(d.payload)["Período de referência"])}</td><td>${esc(r[1])}</td><td>${num(r[14])}</td><td>${esc(d.source_name)}</td></tr>`)))+'<p>Mesmos identificador e nome contratual, respeitando setor e UF de cada retrato. Sem dimensões individuais. Sem períodos comparáveis adicionais, crescimento não calculável.</p>';
