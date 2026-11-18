@@ -1264,3 +1264,29 @@ tr.clickable:focus-visible {
 .investor-globe:active {
   cursor: grabbing;
 }
+
+/* Identificação dos temas do projeto em todas as páginas do painel. */
+header {
+  height: auto;
+  min-height: 64px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  flex-wrap: wrap;
+}
+.header-context {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.project-themes {
+  display: inline-block;
+  padding: 7px 12px;
+  border: 1px solid #aac8eb;
+  border-radius: 8px;
+  background: #e6eef8;
+  color: #16345f;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
