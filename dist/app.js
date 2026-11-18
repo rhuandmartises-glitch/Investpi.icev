@@ -277,12 +277,34 @@ function trend(i) {
   return `<div class="quality">Comparativo da fonte: <b>${fmt(i,i.prev)}</b> · Retrato atual (${esc(params["Data-base"])}): <b>${fmt(i,i.value)}</b> · Unidade: ${esc(i.unit)}.</div><p>A abrangência do comparativo não foi especificada. Não é possível calcular crescimento ou conectar estes valores como uma série temporal equivalente.</p>`;
 }
 
+// GRI references come from the optional columns of the imported workbook.
+function griReference(value) {
+  const reference = typeof value === "string" ? value.trim() : "";
+  return reference && !/^[-–—]+$/.test(reference)
+    ? `<br><small class="muted"><strong>Referência GRI:</strong> ${esc(reference)}</small>`
+    : "";
+}
+
+function contractChecks(row) {
+  const checks = raw.Contratos_ASG[3].slice(6, 14).map((label, index) =>
+    `<tr><td>${esc(label)}</td><td>${esc(row[index + 6])}</td></tr>`);
+  const reference = griReference(row[19]);
+  if (row[17] === "Sim" || row[17] === "Não" || reference) {
+    checks.push(`<tr><td>Relato GRI no contrato</td><td>
+      <strong>Cláusula de reporte:</strong> ${esc(row[17] || "Não informada")}
+      ${row[18] ? `<br><small class="muted"><strong>Critério ASG:</strong> ${esc(row[18])}</small>` : ""}
+      ${reference}
+    </td></tr>`);
+  }
+  return checks;
+}
+
 function indicatorTable(a) {
   return table(
     ["INDICADOR", "DIMENSÃO", "RESULTADO", "META", "STATUS"],
     a.map(
       (i) =>
-        `<tr class="clickable" tabindex="0" role="button" data-ind="${esc(i.id)}"><td><small class="muted">${esc(i.id)}</small><br>${esc(i.name)}</td><td>${esc(i.dim)}</td><td><b>${fmt(i, val(i))}</b></td><td>${filters.period === "current" ? fmt(i, i.target) : "Meta histórica não informada"}</td><td>${filters.period === "current" ? badge(i.status) : badge("Comparativo")}</td></tr>`,
+        `<tr class="clickable" tabindex="0" role="button" data-ind="${esc(i.id)}"><td><small class="muted">${esc(i.id)}</small><br>${esc(i.name)}${griReference(i.r[28])}</td><td>${esc(i.dim)}</td><td><b>${fmt(i, val(i))}</b></td><td>${filters.period === "current" ? fmt(i, i.target) : "Meta histórica não informada"}</td><td>${filters.period === "current" ? badge(i.status) : badge("Comparativo")}</td></tr>`,
     ),
   );
 }
@@ -296,7 +318,7 @@ function supplierDashboard() {
   const r = rows.length === 1 ? rows[0] : null;
   const valid = rows.filter(r => typeof r[14] === "number" && Number.isFinite(r[14]));
   const average = valid.length ? valid.reduce((sum, r) => sum + r[14], 0) / valid.length : null;
-  return intro + `<div class="cards">${card("Fornecedores selecionados", rows.length, "Registros identificados pelo contrato")}${card(r ? "Score ASG da empresa" : "Score ASG médio dos fornecedores", num(r ? r[14] : average), "0–100 · score geral original da planilha")}${card(r ? "Classificação informada" : "Fornecedores com score", r ? esc(classes.get(r[0]) || "Não informada") : valid.length, "Diagnóstico individual · sem classificação entre empresas")}${card("Valor anual contratado", "R$ " + num(rows.reduce((sum, r) => sum + r[4], 0) / 1000, 2) + " mi", "Valor contratual · não representa receita")}</div><section class="panel full"><h2>Dados dos fornecedores selecionados</h2>${table(["EMPRESA", "CATEGORIA / UF", "SCORE ASG", "CLASSIFICAÇÃO", "RISCO CONTRATUAL", "NÃO CONFORMIDADES"], rows.map(r => `<tr><td><a href="#" data-company="${esc(r[0])}">${esc(r[1])}</a></td><td>${esc(r[2])} · ${esc(r[3])}</td><td>${num(r[14])} / 100</td><td>${esc(classes.get(r[0]) || "Não informada")}</td><td>${esc(r[5])}</td><td>${num(r[15])}</td></tr>`))}<p>Fonte: Contratos_ASG e Comparativo_Empresas · data-base ${esc(params["Data-base"])}. O score geral e o risco contratual são medidas distintas.</p></section>${r ? `<section class="panel full"><h2>Cláusulas e verificações · ${esc(r[1])}</h2>${table(["CRITÉRIO", "RESPOSTA NA PLANILHA"], raw.Contratos_ASG[3].slice(6,14).map((h,j) => `<tr><td>${esc(h)}</td><td>${esc(r[j+6])}</td></tr>`))}<p>Contrato ${esc(r[0])} · fim da vigência: ${esc(r[16])}. As respostas contratuais não constituem notas por dimensão ASG.</p></section>` : ""}<section class="panel full"><h2>Evolução da empresa</h2><p>Histórico insuficiente para calcular crescimento: a planilha contém apenas um período por fornecedor. Consulte o diagnóstico para acompanhar cada empresa, sem ranking.</p></section>`;
+  return intro + `<div class="cards">${card("Fornecedores selecionados", rows.length, "Registros identificados pelo contrato")}${card(r ? "Score ASG da empresa" : "Score ASG médio dos fornecedores", num(r ? r[14] : average), "0–100 · score geral original da planilha")}${card(r ? "Classificação informada" : "Fornecedores com score", r ? esc(classes.get(r[0]) || "Não informada") : valid.length, "Diagnóstico individual · sem classificação entre empresas")}${card("Valor anual contratado", "R$ " + num(rows.reduce((sum, r) => sum + r[4], 0) / 1000, 2) + " mi", "Valor contratual · não representa receita")}</div><section class="panel full"><h2>Dados dos fornecedores selecionados</h2>${table(["EMPRESA", "CATEGORIA / UF", "SCORE ASG", "CLASSIFICAÇÃO", "RISCO CONTRATUAL", "NÃO CONFORMIDADES"], rows.map(r => `<tr><td><a href="#" data-company="${esc(r[0])}">${esc(r[1])}</a></td><td>${esc(r[2])} · ${esc(r[3])}</td><td>${num(r[14])} / 100</td><td>${esc(classes.get(r[0]) || "Não informada")}</td><td>${esc(r[5])}</td><td>${num(r[15])}</td></tr>`))}<p>Fonte: Contratos_ASG e Comparativo_Empresas · data-base ${esc(params["Data-base"])}. O score geral e o risco contratual são medidas distintas.</p></section>${r ? `<section class="panel full"><h2>Cláusulas e verificações · ${esc(r[1])}</h2>${table(["CRITÉRIO", "RESPOSTA NA PLANILHA"], contractChecks(r))}<p>Contrato ${esc(r[0])} · fim da vigência: ${esc(r[16])}. As respostas contratuais não constituem notas por dimensão ASG.</p></section>` : ""}<section class="panel full"><h2>Evolução da empresa</h2><p>Histórico insuficiente para calcular crescimento: a planilha contém apenas um período por fornecedor. Consulte o diagnóstico para acompanhar cada empresa, sem ranking.</p></section>`;
 }
 function dashboard() {
   if (!corporate()) return supplierDashboard();
@@ -588,7 +610,7 @@ function detail(id) {
 function companyHtml(r) {
   if (!r) return "<p>Empresa não encontrada no recorte.</p>";
   if (filters.period !== "current" || filters.dim || filters.indicator) return '<p>Sem observações individuais para o período, dimensão ou indicador selecionado.</p>';
-  return `<div><h2>${esc(r[1])}</h2><p>${esc(r[2])} · ${esc(r[3])} · ${esc(r[0])}</p><h3>Score ASG original: ${num(r[14])} / 100</h3><p>Score informado pela fonte; não equivale à pontuação corporativa. A base não fornece scores E/S/G individuais.</p>${table(["CRITÉRIO","RESPOSTA"],raw.Contratos_ASG[3].slice(6,14).map((h,j)=>`<tr><td>${esc(h)}</td><td>${esc(r[j+6])}</td></tr>`))}<p>Valor anual: R$ ${num(r[4])} mil · Não conformidades: ${num(r[15])} · Fim da vigência: ${esc(r[16])}.</p><p>Fonte: Contratos_ASG, contrato ${esc(r[0])} · Data-base ${esc(params["Data-base"])}. Município e série histórica individual não informados.</p></div>`;
+  return `<div><h2>${esc(r[1])}</h2><p>${esc(r[2])} · ${esc(r[3])} · ${esc(r[0])}</p><h3>Score ASG original: ${num(r[14])} / 100</h3><p>Score informado pela fonte; não equivale à pontuação corporativa. A base não fornece scores E/S/G individuais.</p>${table(["CRITÉRIO","RESPOSTA"],contractChecks(r))}<p>Valor anual: R$ ${num(r[4])} mil · Não conformidades: ${num(r[15])} · Fim da vigência: ${esc(r[16])}.</p><p>Fonte: Contratos_ASG, contrato ${esc(r[0])} · Data-base ${esc(params["Data-base"])}. Município e série histórica individual não informados.</p></div>`;
 }
 
 function cross() {
@@ -983,7 +1005,7 @@ function materiality() {
     ["TEMA", "PILAR", "STAKEHOLDERS", "NEGÓCIO", "PRIORIDADE", "GESTÃO"],
     filtered.map(
       (r) =>
-        `<tr><td>${esc(r[1])}</td><td>${esc(r[8])}</td><td>${num(r[4])}</td><td>${num(r[5])}</td><td>${esc(r[6])}</td><td>${esc(r[7])}</td></tr>`,
+        `<tr><td>${esc(r[1])}${griReference(r[10])}</td><td>${esc(r[8])}</td><td>${num(r[4])}</td><td>${num(r[5])}</td><td>${esc(r[6])}</td><td>${esc(r[7])}</td></tr>`,
     ),
   )}</section>`;
 }

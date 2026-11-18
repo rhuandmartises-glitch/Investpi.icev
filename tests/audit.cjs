@@ -118,6 +118,31 @@ test('Mapa apresenta 27 UFs e a lista respeita o recorte selecionado',()=>{
   assert(run('mapUF="";filters.uf="CE";geography()').includes("4 de 4 fornecedores"));
   reset();
 });
+test('GRI aparece no indicador, no contrato e no tema da mesma versão', () => {
+  reset();
+  assert(!run('indicatorTable(inds())').includes('Referência GRI'));
+  assert(!run('companyHtml(contracts[0])').includes('Relato GRI no contrato'));
+  assert(!run('materiality()').includes('Referência GRI'));
+  ctx.griBase = mutator(base => {
+    ASG.rows(base, 'Indicadores', 'IND-').find(row => row[0] === 'IND-47')[28] = 'GRI 302-1 <Energia>';
+    const contract = ASG.rows(base, 'Contratos_ASG', 'CT-').find(row => row[0] === 'CT-001');
+    contract[17] = 'Sim';
+    contract[18] = 'S - Direitos Humanos e Trabalho na Cadeia';
+    contract[19] = 'GRI 414-1 / 414-2';
+    ASG.rows(base, 'Matriz_Materialidade', 'TM-').find(row => row[0] === 'TM-10')[10] = 'GRI 2-26';
+  });
+  try {
+    run('raw=griBase;model();detail("IND-47")');
+    assert.match(el('#detail').innerHTML, /GRI 302-1 &lt;Energia&gt;/);
+    assert.match(run('materiality()'), /GRI 2-26/);
+    assert.match(run('companyHtml(contracts[0])'), /Cláusula de reporte:<\/strong> Sim/);
+    assert.match(run('companyHtml(contracts[0])'), /GRI 414-1 \/ 414-2/);
+    assert.match(run('filters.company="CT-001";supplierDashboard()'), /GRI 414-1 \/ 414-2/);
+  } finally {
+    run('raw=fixture;model()');
+    reset();
+  }
+});
 reset();
 console.log(JSON.stringify({passed:results.filter(r=>r.status==='aprovado').length,failed:results.filter(r=>r.status==='reprovado').length,total:results.length}));fs.mkdirSync('audit',{recursive:true});fs.writeFileSync('audit/test-results.json',JSON.stringify(results,null,2));
 if(results.some(r=>r.status==='reprovado'))process.exitCode=1;
