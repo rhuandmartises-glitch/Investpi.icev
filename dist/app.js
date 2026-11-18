@@ -50,6 +50,12 @@ let extractRange = "active";
 let extractMonth = "";
 let extractAnchor = "";
 let mapUF = "";
+let geographyView = "suppliers";
+let investorCountry = "";
+let investorUF = "";
+let showInvestorStates = false;
+const geographyTabs = [["suppliers", "Fornecedores"], ["investors", "Investidores"]];
+const brazilUFs = new Set("AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO".split(" "));
 let intelligenceView = "indicators";
 const intelligenceTabs = [
   ["indicators", "Indicadores ASG"],
@@ -180,7 +186,7 @@ const options = (arr, sel) =>
         `<option ${sel === x ? "selected" : ""} value="${esc(x)}">${esc(x)}</option>`,
     )
     .join("");
-function controls() {
+function controls(periodOnly = false) {
   const available = (ignore) => contracts.filter(r =>
     (ignore === "company" || !filters.company || r[0] === filters.company) &&
     (ignore === "sector" || !filters.sector || r[2] === filters.sector) &&
@@ -190,13 +196,14 @@ function controls() {
   const latest = latestDataset();
   const label = ASG.parameters(latest.payload)["Período de referência"];
   const past = ASG.snapshots(window.investAuth.datasets).filter(d=>d.id!==latest.id).reverse();
-  $("#filters").innerHTML = `${searchableSelect({id:"filter-company", label:"Empresa / entidade", placeholder:"Digite parte do nome", attributes:'data-filter="company"', optionHtml:`<option value="">Visão coletiva</option><option value="aurora" ${filters.company === "aurora" ? "selected" : ""}>${esc(params["Organização (fictícia)"])}</option>${companyOptions}${filters.company && filters.company !== "aurora" && !companies.some(r=>r[0]===filters.company) ? `<option value="${esc(filters.company)}" selected>Seleção sem correspondência (${esc(filters.company)})</option>` : ""}`})}
+  const periodPicker = `<label>Período<select ${periodOnly ? 'id="investor-period"' : ""} data-filter="period"><option value="current" ${(periodOnly || filters.period==="current") && activeDatasetId===latest.id?"selected":""}>${esc(label)} · versão mais recente</option>${past.map(d=>`<option value="snapshot:${esc(d.id)}" ${(periodOnly || filters.period==="current") && activeDatasetId===d.id?"selected":""}>${esc(d.reference_date+" · "+d.source_name)}</option>`).join("")}${periodOnly ? "" : `<option value="previous" ${filters.period==="previous"?"selected":""}>Comparativo da fonte · abrangência não informada</option>`}</select></label>`;
+  $("#filters").innerHTML = periodOnly ? periodPicker : `${searchableSelect({id:"filter-company", label:"Empresa / entidade", placeholder:"Digite parte do nome", attributes:'data-filter="company"', optionHtml:`<option value="">Visão coletiva</option><option value="aurora" ${filters.company === "aurora" ? "selected" : ""}>${esc(params["Organização (fictícia)"])}</option>${companyOptions}${filters.company && filters.company !== "aurora" && !companies.some(r=>r[0]===filters.company) ? `<option value="${esc(filters.company)}" selected>Seleção sem correspondência (${esc(filters.company)})</option>` : ""}`})}
     ${searchableSelect({id:"filter-sector", label:"Setor do fornecedor", placeholder:"Digite parte do setor", attributes:'data-filter="sector"', optionHtml:options([...available("sector").map(r=>r[2]),filters.sector],filters.sector)})}
     <label>UF do fornecedor<select data-filter="uf">${options([...available("uf").map(r=>r[3]),filters.uf],filters.uf)}</select></label>
     <label>Cidade<select disabled aria-describedby="city-help"><option>Não informada na base</option></select></label>
     <label>Dimensão<select data-filter="dim">${options(["Ambiental","Social","Governança","Validar classificação"],filters.dim)}</select></label>
     ${searchableSelect({id:"filter-indicator", label:"Indicador corporativo", placeholder:"Digite nome ou código", attributes:'data-filter="indicator"', optionHtml:`<option value="">Todos</option>${ind.filter(i=>!filters.dim || i.dim===filters.dim || i.id===filters.indicator).map(i=>`<option value="${esc(i.id)}" ${filters.indicator===i.id ? "selected" : ""}>${esc(i.id+" · "+i.name)}</option>`).join("")}`})}
-    <label>Período<select data-filter="period"><option value="current" ${filters.period==="current" && activeDatasetId===latest.id?"selected":""}>${esc(label)} · versão mais recente</option>${past.map(d=>`<option value="snapshot:${esc(d.id)}" ${filters.period==="current" && activeDatasetId===d.id?"selected":""}>${esc(d.reference_date+" · "+d.source_name)}</option>`).join("")}<option value="previous" ${filters.period==="previous"?"selected":""}>Comparativo da fonte · abrangência não informada</option></select></label>
+    ${periodPicker}
     <button class="btn" id="clear">Limpar</button><small id="city-help">A fonte não informa municípios. Filtros de fornecedor não atribuem indicadores corporativos a empresas individuais.${search ? " Busca de indicador ativa: "+esc(search)+". Use Limpar para remover." : ""}</small>`;
   document.querySelectorAll("[data-filter]").forEach(e => e.onchange = () => {
     if(e.dataset.filter==="period" && e.value!=="previous") {
@@ -212,11 +219,13 @@ function controls() {
       historyMonth = "all";
       extractRange = "active";
       extractAnchor = "";
+      investorCountry = ""; investorUF = ""; showInvestorStates = false;
     }
     mapUF = "";
     render();
     if (e.id) document.getElementById(e.id)?.focus();
   });
+  if (periodOnly) return;
   $("#clear").onclick = () => {
     filters={company:"",sector:"",uf:"",city:"",dim:"",indicator:"",period:"current"};
     search="";
@@ -504,6 +513,27 @@ function indicatorHistory(id, datasets = periodDatasets(historyMonth === "all" ?
 }
 
 let ufMapPromise;
+let worldMapPromise;
+
+async function fetchMap(file) {
+  const response = await fetch(file);
+  if (!response.ok) throw new Error("Mapa indisponível");
+  return response.json();
+}
+
+function loadUfMap() {
+  return ufMapPromise ??= fetchMap("brasil-uf.json").catch(error => {
+    ufMapPromise = null;
+    throw error;
+  });
+}
+
+function loadWorldMap() {
+  return worldMapPromise ??= fetchMap("mundo-paises.json").catch(error => {
+    worldMapPromise = null;
+    throw error;
+  });
+}
 const mapLegend = [
   {label: "Sem registros", max: 0, color: "#e6eef8"},
   {label: "Até 5%", max: 0.05, color: "#8db0de"},
@@ -544,10 +574,7 @@ function bindSupplierMap(container) {
   document.querySelectorAll("[data-map-uf]").forEach(button => {
     button.onclick = () => choose(button.dataset.mapUf, "button");
   });
-  const request = ufMapPromise ??= fetch("brasil-uf.json").then(response => {
-    if (!response.ok) throw new Error("Mapa indisponível");
-    return response.json();
-  });
+  const request = loadUfMap();
   request.then(map => {
     if (!container.isConnected) return;
     container.innerHTML = `<svg class="uf-map" viewBox="${esc(map.viewBox)}" aria-label="Mapa do Brasil por unidade da federação">
@@ -574,10 +601,175 @@ function bindSupplierMap(container) {
       };
     });
   }).catch(() => {
-    if (ufMapPromise === request) ufMapPromise = null;
     if (!container.isConnected) return;
     container.setAttribute("aria-busy", "false");
     container.textContent = "Mapa indisponível no momento. Use os botões de UF e a lista de fornecedores.";
+  });
+}
+
+function investorLocations() {
+  const rows = raw.Investidores || [];
+  const headerIndex = rows.findIndex(row =>
+    row.some(cell => normalizedSearch(String(cell ?? "")) === "id") &&
+    row.some(cell => normalizedSearch(String(cell ?? "")) === "investidor"));
+  const headers = new Map((rows[headerIndex] || []).map((cell, column) =>
+    [normalizedSearch(String(cell ?? "")), column]));
+  const locationFields = ["País da sede", "Código do país (ISO 2)", "UF da sede", "Natureza da localização"];
+  const missing = locationFields.filter(label => !headers.has(normalizedSearch(label)));
+  const investors = new Map();
+  for (const row of rows.slice(headerIndex + 1)) {
+    const field = label => String(row[headers.get(normalizedSearch(label))] ?? "").trim();
+    const id = field("ID");
+    if (!/^INV-/i.test(id) || investors.has(id.toUpperCase())) continue;
+    const country = field("País da sede");
+    const iso = field("Código do país (ISO 2)").toUpperCase();
+    const uf = field("UF da sede").toUpperCase();
+    const code = country && /^[A-Z]{2}$/.test(iso) ? iso : "";
+    investors.set(id.toUpperCase(), {
+      id, name: field("Investidor"), country, code,
+      uf: code === "BR" && brazilUFs.has(uf) ? uf : "",
+      nature: field("Natureza da localização"),
+    });
+  }
+  return {investors: [...investors.values()], missing};
+}
+
+function investorMapData() {
+  const {investors, missing} = investorLocations();
+  const domestic = investors.filter(item => item.code === "BR");
+  const foreign = investors.filter(item => item.code && item.code !== "BR");
+  const unknown = investors.filter(item => !item.code);
+  const countryCounts = new Map();
+  for (const item of [...domestic, ...foreign]) {
+    const group = countryCounts.get(item.code) || {label: item.country, count: 0};
+    group.count++;
+    countryCounts.set(item.code, group);
+  }
+  const ufCounts = new Map(group(domestic.map(item => [item.uf]), 0));
+  return {investors, domestic, foreign, unknown, countryCounts, ufCounts, missing};
+}
+
+function investorButton(value, label, selected) {
+  return `<button type="button" class="btn" data-investor-region="${esc(value)}" aria-pressed="${selected}">${esc(label)}</button>`;
+}
+
+function investorGeography() {
+  const {investors, domestic, foreign, unknown, countryCounts, ufCounts, missing} = investorMapData();
+  const country = countryCounts.get(investorCountry);
+  const breakdown = showInvestorStates && investorCountry === "BR" && domestic.length > 0;
+  let visible = investors;
+  if (breakdown) {
+    visible = investorUF === "unknown" ? domestic.filter(item => !item.uf)
+      : domestic.filter(item => !investorUF || item.uf === investorUF);
+  } else if (investorCountry === "foreign") {
+    visible = foreign;
+  } else if (investorCountry === "unknown") {
+    visible = unknown;
+  } else if (country) {
+    visible = investors.filter(item => item.code === investorCountry);
+  }
+  const location = breakdown ? (investorUF === "unknown" ? "UF não informada · Brasil" : investorUF || "Brasil")
+    : country?.label ?? (investorCountry === "foreign" ? "Exterior" : investorCountry === "unknown" ? "Localização não informada" : "Todos os investidores");
+  const buttons = breakdown
+    ? investorButton("", `Todas as UFs · ${domestic.length}`, !investorUF)
+      + [...ufCounts].map(([uf, count]) => investorButton(uf || "unknown", `${uf || "UF não informada"} · ${count}`, investorUF === (uf || "unknown"))).join("")
+    : investorButton("", `Todos · ${investors.length}`, !investorCountry)
+      + [...countryCounts].sort((a, b) => a[1].label.localeCompare(b[1].label, "pt-BR"))
+        .map(([code, item]) => investorButton(code, `${item.label} · ${item.count}`, investorCountry === code)).join("")
+      + (foreign.length ? investorButton("foreign", `Exterior · ${foreign.length}`, investorCountry === "foreign") : "")
+      + (unknown.length ? investorButton("unknown", `Localização não informada · ${unknown.length}`, investorCountry === "unknown") : "");
+  return `<section aria-labelledby="investors-title">
+    <h2 id="investors-title">Investidores por localização da sede</h2>
+    <p>Data-base: ${esc(investeDate(params["Data-base"]))}. As regiões representam a sede dos investidores. Para localizar os projetos que receberam aportes, use os dados de localização dos projetos.</p>
+    <div class="toolbar investor-summary" aria-label="Resumo de investidores">
+      <span><strong>${investors.length}</strong> no total</span>
+      <span><strong>${domestic.length}</strong> no Brasil</span>
+      <span><strong>${foreign.length}</strong> no exterior</span>
+      ${unknown.length ? `<span><strong>${unknown.length}</strong> com localização não informada</span>` : ""}
+    </div>
+    ${missing.length ? `<p class="quality">Colunas ausentes na aba Investidores: ${esc(missing.join(", "))}.</p>` : ""}
+    <div class="grid investor-grid">
+      <section class="panel">
+        <h3>${breakdown ? "Brasil por UF" : "Mapa mundial"}</h3>
+        ${breakdown ? '<button class="btn" type="button" id="investor-world">Voltar ao mapa mundial</button>'
+          : investorCountry === "BR" && domestic.length ? '<button class="btn" type="button" id="investor-brazil">Ver Brasil por UF</button>' : ""}
+        ${countryCounts.size ? '<div id="investor-map" aria-busy="true"><p role="status">Carregando mapa…</p></div>' : '<p>Sem localizações disponíveis para exibir no mapa.</p>'}
+        <div class="toolbar map-states" aria-label="${breakdown ? "Selecionar UF" : "Selecionar país ou região"}">${buttons}</div>
+      </section>
+      <section class="panel">
+        <h3>${esc(location)}</h3>
+        <p role="status">${visible.length} ${visible.length === 1 ? "investidor" : "investidores"} no recorte.</p>
+        ${table(["INVESTIDOR", "SEDE", "NATUREZA DA LOCALIZAÇÃO"], visible.map(item => {
+          const sede = item.code === "BR" ? `${item.country} · ${item.uf || "Localização não informada (UF)"}`
+            : item.code ? item.country : "Localização não informada";
+          return `<tr><td>${esc(item.name || item.id)}<br><small class="muted">${esc(item.id)}</small></td><td>${esc(sede)}</td><td>${esc(item.nature || "Não informada")}</td></tr>`;
+        }))}
+      </section>
+    </div>
+  </section>`;
+}
+
+function bindInvestorMap() {
+  const {domestic, investors, countryCounts, ufCounts} = investorMapData();
+  const focusRegion = value => Array.from(document.querySelectorAll("[data-investor-region]"))
+    .find(button => button.dataset.investorRegion === value)?.focus();
+  const select = value => {
+    if (showInvestorStates) investorUF = value;
+    else investorCountry = value;
+    render();
+    focusRegion(value);
+  };
+  document.querySelectorAll("[data-investor-region]").forEach(button => {
+    button.onclick = () => select(button.dataset.investorRegion);
+  });
+  if ($("#investor-brazil")) $("#investor-brazil").onclick = () => {
+    showInvestorStates = true;
+    investorUF = "";
+    render();
+    $("#investor-world").focus();
+  };
+  if ($("#investor-world")) $("#investor-world").onclick = () => {
+    showInvestorStates = false;
+    investorUF = "";
+    render();
+    $("#investor-brazil").focus();
+  };
+  const container = $("#investor-map");
+  if (!container) return;
+  const states = showInvestorStates;
+  const total = states ? domestic.length : investors.length;
+  const loading = states ? loadUfMap() : loadWorldMap();
+  loading.then(map => {
+    if (!container.isConnected) return;
+    const shapes = states ? map.states : map.countries;
+    const label = states ? "Mapa dos investidores no Brasil por UF" : "Mapa mundial de investidores";
+    container.innerHTML = `<svg class="uf-map investor-svg" viewBox="${esc(map.viewBox)}" aria-label="${label}">
+      ${shapes.map(shape => {
+        const key = states ? shape.uf : shape.code;
+        const count = states ? (ufCounts.get(key) || 0) : (countryCounts.get(key)?.count || 0);
+        const shade = mapLegend.find(step => count / total <= step.max).color;
+        const selected = count > 0 && key === (states ? investorUF : investorCountry);
+        const name = !states && count ? countryCounts.get(key).label : shape.name;
+        const title = `${name} · ${count} ${count === 1 ? "investidor" : "investidores"}`;
+        return `<path d="${esc(shape.path)}" fill="${shade}" class="${selected ? "selected" : ""}"
+          ${count ? `role="button" data-map-state="${esc(key)}" tabindex="0" aria-pressed="${selected}" aria-label="${esc(title)}"` : ""}>
+          <title>${esc(title)}</title></path>`;
+      }).join("")}</svg>
+      <ul class="map-legend" aria-label="Escala de participação">${mapLegend.map(step => `<li><span aria-hidden="true" style="background:${step.color}"></span>${step.label}</li>`).join("")}</ul>
+      <p class="muted">Limites geográficos · <a href="${states ? "https://www.ibge.gov.br/geociencias/organizacao-do-territorio/estrutura-territorial/15774-malhas.html" : "https://www.naturalearthdata.com/downloads/110m-cultural-vectors/110m-admin-0-countries/"}">${states ? "IBGE" : "Natural Earth"}</a></p>`;
+    container.setAttribute("aria-busy", "false");
+    container.querySelectorAll("[data-map-state]").forEach(shape => {
+      shape.onclick = () => select(shape.dataset.mapState);
+      shape.onkeydown = event => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        select(shape.dataset.mapState);
+      };
+    });
+  }).catch(() => {
+    if (!container.isConnected) return;
+    container.setAttribute("aria-busy", "false");
+    container.textContent = "Mapa indisponível no momento. Use os botões de localização para consultar a lista.";
   });
 }
 
@@ -666,18 +858,25 @@ function versionTable() {
 function management() {
   return `<section class="panel full"><h2>Qualidade e rastreabilidade</h2><div class="quality">Base explicitamente fictícia. 1 organização principal; ${contracts.length} fornecedores, ${ind.length} indicadores corporativos. Identificadores duplicados: ${ind.length - new Set(ind.map((i) => i.id)).size} indicadores; ${contracts.length - new Set(contracts.map((r) => r[0])).size} contratos.</div><div class="quality">${ind.filter((i) => i.value == null).length} resultados atuais ausentes; ${ind.filter((i) => !i.r[23]).length} indicadores sem fonte; ${ind.filter((i) => i.dim === "Validar classificação").length} classificações ASG pendentes.</div><p>Municípios e coordenadas ausentes. Unidade monetária dos contratos: R$ mil; aportes e receita: R$ milhões. Não somar grandezas de unidades distintas. Fim da vigência contratual não é período de observação. Atualização da fonte não informada; data-base ${esc(params["Data-base"])}.</p><h3>Proveniência</h3><p>Resultados: coluna K de Indicadores; comparativo L; metas N; pesos T. A linha exata está nos detalhes de cada indicador. Classificação ASG: coluna AA da nova planilha. Dados originais e vínculos entre abas permanecem identificados. O protótipo lê valores armazenados e recalcula indicadores compatíveis na importação; não executa fórmulas Excel arbitrárias.</p></section><section class="panel full"><h2>Importar e validar dados</h2><p>Excel: mesmo modelo da planilha original. CSV: substituição do catálogo com 24 ou 27 colunas originais, na mesma ordem, cabeçalho na primeira linha e números em formato decimal; as outras entidades são preservadas. O CSV deve conter valores, sem fórmulas.</p>${$("#role").value === "Administrador" ? '<div class="filebox"><input type="file" id="file" accept=".xlsx,.csv"><div id="preview"></div></div>' : "<p>Seu perfil permite consulta. Solicite o perfil de administrador ao responsável.</p>"}<p>${window.investAuth.demo ? "Demonstração: importações e versões ficam somente nesta sessão do navegador. Não envie dados reais. O banco institucional não é acessado." : "Base e versões no banco protegido; importações exigem permissão de administrador. Preferências temporárias ficam nesta sessão."}</p><h3>Registro das atualizações</h3>${versionTable()}</section>`;
 }
+function renderViewTabs(group, visible, selected, views) {
+  const tabs = $(`#${group}-tabs`);
+  tabs.hidden = !visible;
+  tabs.innerHTML = visible ? views.map(([id, label]) =>
+    `<button class="btn" type="button" role="tab" id="${group}-tab-${id}" data-${group}-tab="${id}"
+      aria-selected="${id === selected}" aria-controls="${group}-panel"
+      tabindex="${id === selected ? 0 : -1}">${label}</button>`).join("") : "";
+}
+
 function render() {
   const isIntelligence = page === 1;
+  const isGeography = page === 6;
   const showInveste = isIntelligence && intelligenceView === "investe";
+  const showInvestors = isGeography && geographyView === "investors";
   $("#filters").hidden = showInveste;
   $("#demo-notice").hidden = showInveste;
-  if (!showInveste) controls();
-  const tabs = $("#intelligence-tabs");
-  tabs.hidden = !isIntelligence;
-  tabs.innerHTML = isIntelligence ? intelligenceTabs.map(([id, label]) =>
-    `<button class="btn" type="button" role="tab" id="intelligence-tab-${id}" data-intelligence-tab="${id}"
-      aria-selected="${id === intelligenceView}" aria-controls="intelligence-panel"
-      tabindex="${id === intelligenceView ? 0 : -1}">${label}</button>`).join("") : "";
+  if (!showInveste) controls(showInvestors);
+  renderViewTabs("intelligence", isIntelligence, intelligenceView, intelligenceTabs);
+  renderViewTabs("geography", isGeography, geographyView, geographyTabs);
   $("footer span").textContent="Fonte: "+(sessionStorage.getItem("asg-source")||"Base carregada")+" · data-base "+params["Data-base"];
 
   $("#nav").innerHTML = pages
@@ -695,14 +894,16 @@ function render() {
     indicators,
     crossings,
     history,
-    geography,
+    showInvestors ? investorGeography : geography,
     reports,
     management,
     competition,
     materiality,
   ][page]();
-  $("#app").innerHTML = isIntelligence
-    ? `<div id="intelligence-panel" role="tabpanel" tabindex="0" aria-labelledby="intelligence-tab-${intelligenceView}">${content}</div>`
+  const group = isIntelligence ? "intelligence" : isGeography ? "geography" : null;
+  const view = isIntelligence ? intelligenceView : geographyView;
+  $("#app").innerHTML = group
+    ? `<div id="${group}-panel" role="tabpanel" tabindex="0" aria-labelledby="${group}-tab-${view}">${content}</div>`
     : content;
   bind();
   const corporateButton = $("#corporate-view");
@@ -844,28 +1045,32 @@ async function exportPdf() {
 }
 function exportExcel() { XLSX.writeFile(exportWorkbook(),"Extrato_ASG.xlsx"); }
 
-function bindIntelligenceTabs() {
-  document.querySelectorAll("[data-intelligence-tab]").forEach((tab) => {
+function bindViewTabs(group, views, onSelect) {
+  document.querySelectorAll(`[data-${group}-tab]`).forEach((tab) => {
+    const id = tab.id.slice(group.length + 5);
     const select = (view) => {
-      intelligenceView = view;
+      onSelect(view);
       render();
-      $(`#intelligence-tab-${view}`).focus();
+      $(`#${group}-tab-${view}`).focus();
     };
-    tab.onclick = () => select(tab.dataset.intelligenceTab);
+    tab.onclick = () => select(id);
     tab.onkeydown = (event) => {
-      const last = intelligenceTabs.length - 1;
-      const current = intelligenceTabs.findIndex(([id]) => id === tab.dataset.intelligenceTab);
-      const target = {
-        Home: 0,
-        End: last,
-        ArrowLeft: (current + last) % intelligenceTabs.length,
-        ArrowRight: (current + 1) % intelligenceTabs.length,
-      }[event.key];
+      const last = views.length - 1;
+      const current = views.findIndex(([view]) => view === id);
+      const target = new Map([
+        ["Home", 0], ["End", last],
+        ["ArrowLeft", (current + last) % views.length],
+        ["ArrowRight", (current + 1) % views.length],
+      ]).get(event.key);
       if (target === undefined) return;
       event.preventDefault();
-      select(intelligenceTabs[target][0]);
+      select(views[target][0]);
     };
   });
+}
+
+function bindIntelligenceTabs() {
+  bindViewTabs("intelligence", intelligenceTabs, view => { intelligenceView = view; });
   if (intelligenceView !== "investe") return;
   const actions = investeActions();
   document.querySelectorAll("[data-investe-evidence]").forEach((button) => {
@@ -876,7 +1081,11 @@ function bindIntelligenceTabs() {
 function bind() {
   bindSelectSearch();
   if (page === 1) bindIntelligenceTabs();
-  if (page === 6 && $("#supplier-map")) bindSupplierMap($("#supplier-map"));
+  if (page === 6) {
+    bindViewTabs("geography", geographyTabs, view => { geographyView = view; });
+    if (geographyView === "investors") bindInvestorMap();
+    else if ($("#supplier-map")) bindSupplierMap($("#supplier-map"));
+  }
   if (page === 5 && $("#history-month")) $("#history-month").onchange = event => {
     historyMonth = event.target.value;
     render();
@@ -911,6 +1120,7 @@ function bind() {
           }
         }
         if (nextPage === 1 && page !== 1) intelligenceView = "indicators";
+        if (nextPage === 6 && page !== 6) geographyView = "suppliers";
         page = nextPage;
         render();
         window.scrollTo(0, 0);
@@ -1039,6 +1249,7 @@ async function commitDataset(data,name) {
   model(); pending=null;
   filters={company:"",sector:"",uf:"",city:"",dim:"",indicator:"",period:"current"};
   search="";weights={};
+  investorCountry = ""; investorUF = ""; showInvestorStates = false;
   historyMonth = "all"; extractRange = "active"; extractMonth = ""; extractAnchor = ""; mapUF = "";
   try{sessionStorage.removeItem("asg-weights");}catch{}
   render();

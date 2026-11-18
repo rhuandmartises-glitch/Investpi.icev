@@ -150,8 +150,8 @@ test('Visão institucional lê cabeçalhos, preserva filtros e distingue zero de
   reset();
   assert.match(run('investeView()'), /Importe uma planilha com a aba ASG_Investe/);
   const before = ctx.document.querySelectorAll;
-  const indicatorTab = {dataset:{intelligenceTab:"indicators"}};
-  const investeTab = {dataset:{intelligenceTab:"investe"}};
+  const indicatorTab = {id:"intelligence-tab-indicators"};
+  const investeTab = {id:"intelligence-tab-investe"};
   let focused = "";
   for (const tab of ["indicators", "investe"]) el("#intelligence-tab-" + tab).focus = () => { focused = tab; };
   ctx.document.querySelectorAll = selector => selector === "[data-intelligence-tab]" ? [indicatorTab, investeTab] : [];
@@ -188,6 +188,37 @@ test('Visão institucional lê cabeçalhos, preserva filtros e distingue zero de
   } finally {
     ctx.document.querySelectorAll = before;
     run('raw=fixture;model();page=0;intelligenceView="indicators"');
+    reset();
+  }
+});
+test('Mapa de investidores usa a sede e conta cada ID uma vez', () => {
+  reset();
+  assert.match(run('investorGeography()'), /Colunas ausentes na aba Investidores: País da sede/);
+  ctx.investorFixture = mutator(base => {
+    base.Investidores = [
+      ["Investidor", "UF da sede", "Natureza da localização", "Código do país (ISO 2)", "ID", "País da sede"],
+      ["Fundo brasileiro", "PI", "Localização fictícia", "BR", "INV-01", "Brasil"],
+      ["Duplicado", "CE", "Localização fictícia", "BR", "inv-01", "Brasil"],
+      ["Fundo norueguês", "", "Localização fictícia", "no", "INV-02", "Noruega"],
+      ["Sede sem UF", "", "", "BR", "INV-03", "Brasil"],
+      ["Sem localização", "", "", "", "INV-04", ""],
+    ];
+  });
+  try {
+    run('raw=investorFixture;model();filters.company="CT-001";filters.uf="SP"');
+    assert.match(run('investorGeography()'), /<strong>4<\/strong> no total/);
+    assert.match(run('investorGeography()'), /Localização não informada/);
+    assert.match(run('investorCountry="NO";investorGeography()'), /Fundo norueguês/);
+    const brazil = run('investorCountry="BR";showInvestorStates=true;investorUF="PI";investorGeography()');
+    assert.match(brazil, /Fundo brasileiro/);
+    assert.doesNotMatch(brazil, /Sede sem UF|Fundo norueguês|Duplicado/);
+    const missing = run('investorUF="unknown";investorGeography()');
+    assert.match(missing, /Sede sem UF/);
+    assert.doesNotMatch(missing, /Fundo brasileiro/);
+    const codes = new Set(require('../dist/mundo-paises.json').countries.map(({code}) => code));
+    for (const code of ["BR", "NO", "JP"]) assert(codes.has(code));
+  } finally {
+    run('raw=fixture;model();investorCountry="";investorUF="";showInvestorStates=false');
     reset();
   }
 });

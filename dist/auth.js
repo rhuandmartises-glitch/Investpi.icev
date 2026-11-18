@@ -142,7 +142,7 @@
     if (!started) {
       started = true;
       const script = document.createElement("script");
-      script.src = "app.js?v=asg-investe-20261118";
+      script.src = "app.js?v=mapa-investidores-20261118";
       script.onerror=()=>{started=false;lock("Não foi possível carregar o painel. Atualize a página.");};
       document.body.append(script);
     }

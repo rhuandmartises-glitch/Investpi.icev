@@ -1160,13 +1160,13 @@ tr.clickable:focus-visible {
   stroke-width: 3;
 }
 
-#intelligence-tabs {
+.view-tabs {
   display: flex;
   gap: 8px;
   margin: 0 0 16px;
 }
 
-#intelligence-tabs [aria-selected="true"] {
+.view-tabs [aria-selected="true"] {
   color: white;
   background: var(--blue);
   border-color: var(--blue);
@@ -1210,9 +1210,26 @@ tr.clickable:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  #intelligence-tabs > .btn {
+  .view-tabs > .btn {
     flex: 1 1 0;
     min-width: 0;
     padding-inline: 10px;
+  }
+}
+
+.investor-summary span {
+  padding: 7px 12px;
+  background: var(--blue-50);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.investor-grid {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+}
+
+@media (max-width: 1000px) {
+  .investor-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
