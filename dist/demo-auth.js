@@ -175,7 +175,7 @@ window.startInvestDemo = async function startInvestDemo() {
     if (!loaded) {
       loaded = true;
       const script = document.createElement("script");
-      script.src = "app.js?v=mapa-investidores-20261118";
+      script.src = "app.js?v=globo-investidores-20261118";
       script.onerror = () => {
         loaded = false;
         $("#workspace").hidden = true;

@@ -54,6 +54,24 @@ let geographyView = "suppliers";
 let investorCountry = "";
 let investorUF = "";
 let showInvestorStates = false;
+let investorMapMode = "3d";
+let investorGlobeUnavailable = false;
+let investorContinent = "";
+let investorGlobeTarget;
+let disposeInvestorGlobe;
+let investorGlobeModule;
+const investorGlobeCamera = {longitude: -53 * Math.PI / 180, latitude: -13 * Math.PI / 180};
+const investorContinents = {
+  africa: ["África", [18, 3], "DZ AO BJ BW BF BI CV CM CF TD KM CG CD DJ EG GQ ER SZ ET GA GM GH GN GW CI KE LS LR LY MG MW ML MR MU YT MA MZ NA NE NG RE RW SH ST SN SC SL SO ZA SS SD TZ TG TN UG EH ZM ZW"],
+  america: ["América", [-72, 10], "AI AG AR AW BS BB BZ BM BO BQ BR CA KY CL CO CR CU CW DM DO EC SV FK GF GL GD GP GT GY HT HN JM MQ MX MS NI PA PY PE PR BL KN LC MF PM VC SX SR TT TC US UY VE VG VI"],
+  asia: ["Ásia", [100, 30], "AF AM AZ BH BD BT BN KH CN CY GE HK IN ID IR IQ IL JP JO KZ KW KG LA LB MO MY MV MN MM NP KP OM PK PS PH QA SA SG KR LK SY TW TJ TH TL TR TM AE UZ VN YE"],
+  europe: ["Europa", [15, 51], "AL AD AT BY BE BA BG HR CZ DK EE FO FI FR DE GI GR GG HU IS IE IM IT JE XK LV LI LT LU MT MD MC ME NL MK NO PL PT RO RU SM RS SK SI ES SJ SE CH UA GB VA"],
+  oceania: ["Oceania", [151, -20], "AS AU CK FJ PF GU KI MH FM NR NC NZ NU NF MP PW PG PN WS SB TK TO TV UM VU WF"],
+  antarctica: ["Antártida", [0, -80], "AQ BV TF HM GS"],
+};
+const investorCountryContinent = new Map(Object.entries(investorContinents).flatMap(([region, [, , codes]]) =>
+  codes.split(" ").map(code => [code, region])));
+
 const geographyTabs = [["suppliers", "Fornecedores"], ["investors", "Investidores"]];
 const brazilUFs = new Set("AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO".split(" "));
 let intelligenceView = "indicators";
@@ -117,7 +135,7 @@ function bindSelectSearch() {
       return;
     }
     const feedback = select.parentElement?.querySelector?.(".choice-feedback") || input.nextElementSibling || {textContent:""};
-    const original = Array.from(select.options).map(option => ({value: option.value, text: option.text}));
+    const original = Array.from(select.options).filter(option => !option.hidden).map(option => ({value: option.value, text: option.text}));
     const syncInput = () => { if (!select.multiple) input.value = Array.from(select.selectedOptions, option => option.text).join(", "); };
     const close = () => { list.hidden = true; input.setAttribute("aria-expanded", "false"); feedback.textContent = ""; };
     const renderOptions = () => {
@@ -656,6 +674,7 @@ function investorButton(value, label, selected) {
 function investorGeography() {
   const {investors, domestic, foreign, unknown, countryCounts, ufCounts, missing} = investorMapData();
   const country = countryCounts.get(investorCountry);
+  const countries = [...countryCounts].sort((a, b) => a[1].label.localeCompare(b[1].label, "pt-BR"));
   const breakdown = showInvestorStates && investorCountry === "BR" && domestic.length > 0;
   let visible = investors;
   if (breakdown) {
@@ -667,14 +686,16 @@ function investorGeography() {
     visible = unknown;
   } else if (country) {
     visible = investors.filter(item => item.code === investorCountry);
+  } else if (investorContinent) {
+    visible = investors.filter(item => investorCountryContinent.get(item.code) === investorContinent);
   }
   const location = breakdown ? (investorUF === "unknown" ? "UF não informada · Brasil" : investorUF || "Brasil")
-    : country?.label ?? (investorCountry === "foreign" ? "Exterior" : investorCountry === "unknown" ? "Localização não informada" : "Todos os investidores");
+    : country?.label ?? (investorCountry === "foreign" ? "Exterior" : investorCountry === "unknown" ? "Localização não informada" : investorContinents[investorContinent]?.[0] || "Todos os investidores");
   const buttons = breakdown
     ? investorButton("", `Todas as UFs · ${domestic.length}`, !investorUF)
       + [...ufCounts].map(([uf, count]) => investorButton(uf || "unknown", `${uf || "UF não informada"} · ${count}`, investorUF === (uf || "unknown"))).join("")
-    : investorButton("", `Todos · ${investors.length}`, !investorCountry)
-      + [...countryCounts].sort((a, b) => a[1].label.localeCompare(b[1].label, "pt-BR"))
+    : investorButton("", investorContinent ? `${investorContinents[investorContinent][0]} · ${investors.filter(item => investorCountryContinent.get(item.code) === investorContinent).length}` : `Todos · ${investors.length}`, !investorCountry)
+      + countries.filter(([code]) => !investorContinent || investorCountryContinent.get(code) === investorContinent)
         .map(([code, item]) => investorButton(code, `${item.label} · ${item.count}`, investorCountry === code)).join("")
       + (foreign.length ? investorButton("foreign", `Exterior · ${foreign.length}`, investorCountry === "foreign") : "")
       + (unknown.length ? investorButton("unknown", `Localização não informada · ${unknown.length}`, investorCountry === "unknown") : "");
@@ -690,14 +711,32 @@ function investorGeography() {
     ${missing.length ? `<p class="quality">Colunas ausentes na aba Investidores: ${esc(missing.join(", "))}.</p>` : ""}
     <div class="grid investor-grid">
       <section class="panel">
+        ${searchableSelect({
+          id: "investor-country", label: "Buscar país", placeholder: "Ex. Japão",
+          optionHtml: '<option value="" hidden></option>' + countries.map(([code, item]) =>
+            `<option value="${esc(code)}" ${code === investorCountry ? "selected" : ""}>${esc(item.label)}</option>`).join(""),
+        })}
         <h3>${breakdown ? "Brasil por UF" : "Mapa mundial"}</h3>
+        ${!breakdown ? `<div class="toolbar investor-map-controls">
+          <label for="investor-continent">Continente<select id="investor-continent">
+            <option value="">Todos os continentes</option>
+            ${Object.entries(investorContinents).map(([key, [label]]) =>
+              `<option value="${key}" ${investorContinent === key ? "selected" : ""}>${label}</option>`).join("")}
+          </select></label>
+          <div class="investor-map-modes" role="group" aria-label="Visualização do mapa">
+            <button class="btn" type="button" data-investor-mode="3d" aria-pressed="${investorMapMode === "3d"}" ${investorGlobeUnavailable ? "disabled" : ""}>Globo 3D</button>
+            <button class="btn" type="button" data-investor-mode="2d" aria-pressed="${investorMapMode === "2d"}">Mapa 2D</button>
+          </div>
+        </div>${investorGlobeUnavailable ? '<p class="muted" role="status">Globo 3D indisponível neste navegador. Mapa 2D ativado.</p>' : ""}` : ""}
         ${breakdown ? '<button class="btn" type="button" id="investor-world">Voltar ao mapa mundial</button>'
           : investorCountry === "BR" && domestic.length ? '<button class="btn" type="button" id="investor-brazil">Ver Brasil por UF</button>' : ""}
-        ${countryCounts.size ? '<div id="investor-map" aria-busy="true"><p role="status">Carregando mapa…</p></div>' : '<p>Sem localizações disponíveis para exibir no mapa.</p>'}
+        <div id="investor-map" aria-busy="true"><p role="status">Carregando mapa…</p></div>
+        ${!breakdown && !countries.some(([code]) => !investorContinent || investorCountryContinent.get(code) === investorContinent)
+          ? '<p>Sem investidores cadastrados neste recorte geográfico.</p>' : ""}
         <div class="toolbar map-states" aria-label="${breakdown ? "Selecionar UF" : "Selecionar país ou região"}">${buttons}</div>
       </section>
       <section class="panel">
-        <h3>${esc(location)}</h3>
+        <h3 id="investor-results" tabindex="-1">${esc(location)}</h3>
         <p role="status">${visible.length} ${visible.length === 1 ? "investidor" : "investidores"} no recorte.</p>
         ${table(["INVESTIDOR", "SEDE", "NATUREZA DA LOCALIZAÇÃO"], visible.map(item => {
           const sede = item.code === "BR" ? `${item.country} · ${item.uf || "Localização não informada (UF)"}`
@@ -713,12 +752,40 @@ function bindInvestorMap() {
   const {domestic, investors, countryCounts, ufCounts} = investorMapData();
   const focusRegion = value => Array.from(document.querySelectorAll("[data-investor-region]"))
     .find(button => button.dataset.investorRegion === value)?.focus();
+  const selectCountry = (value, fromSearch = false) => {
+    if (!countryCounts.has(value) && !["", "foreign", "unknown"].includes(value)) return;
+    investorCountry = value;
+    showInvestorStates = false;
+    investorUF = "";
+    if (countryCounts.has(value) && investorContinent !== investorCountryContinent.get(value)) investorContinent = "";
+    investorGlobeTarget = countryCounts.has(value) ? value : (investorContinents[investorContinent]?.[1] || [-53, -13]);
+    render();
+    if (fromSearch) $("#investor-results").focus({preventScroll: true});
+    else focusRegion(value);
+  };
   const select = value => {
-    if (showInvestorStates) investorUF = value;
-    else investorCountry = value;
+    if (!showInvestorStates) return selectCountry(value);
+    investorUF = value;
     render();
     focusRegion(value);
   };
+  $("#investor-country").onchange = event => selectCountry(event.target.value, true);
+  const continent = $("#investor-continent");
+  if (continent) continent.onchange = () => {
+    investorContinent = continent.value;
+    investorGlobeTarget = investorContinents[investorContinent]?.[1] || [-53, -13];
+    investorCountry = "";
+    render();
+    $("#investor-continent").focus({preventScroll: true});
+  };
+  document.querySelectorAll("[data-investor-mode]").forEach(button => {
+    button.onclick = () => {
+      if (investorMapMode === button.dataset.investorMode) return;
+      investorMapMode = button.dataset.investorMode;
+      render();
+      $(`[data-investor-mode="${investorMapMode}"]`).focus({preventScroll: true});
+    };
+  });
   document.querySelectorAll("[data-investor-region]").forEach(button => {
     button.onclick = () => select(button.dataset.investorRegion);
   });
@@ -737,7 +804,35 @@ function bindInvestorMap() {
   const container = $("#investor-map");
   if (!container) return;
   const states = showInvestorStates;
-  const total = states ? domestic.length : investors.length;
+  const total = (states ? domestic.length : investors.length) || 1;
+  if (!states && investorMapMode === "3d") {
+    container.innerHTML = `<div class="investor-globe-stage"><canvas class="investor-globe"
+      aria-label="Globo interativo. Use a busca ou a lista para escolher um país pelo teclado."></canvas></div>
+      <p class="muted">Arraste para girar. Países em azul claro têm investidores. · <a href="https://www.naturalearthdata.com/downloads/110m-cultural-vectors/110m-admin-0-countries/">Natural Earth</a></p>`;
+    const fallback = () => {
+      if (!container.isConnected) return;
+      const restoreFocus = document.activeElement === $('[data-investor-mode="3d"]');
+      investorGlobeUnavailable = true;
+      investorMapMode = "2d";
+      render();
+      if (restoreFocus) $('[data-investor-mode="2d"]').focus({preventScroll: true});
+    };
+    investorGlobeModule ??= import("./investor-globe.js");
+    Promise.all([investorGlobeModule, loadWorldMap()]).then(([{mountGlobe}, map]) => {
+      if (!container.isConnected) return;
+      disposeInvestorGlobe = mountGlobe(container.querySelector("canvas"), map, {
+        counts: countryCounts,
+        selected: investorCountry,
+        target: investorGlobeTarget,
+        camera: investorGlobeCamera,
+        onSelect: code => selectCountry(code, true),
+        onUnavailable: fallback,
+      });
+      investorGlobeTarget = null;
+      container.setAttribute("aria-busy", "false");
+    }).catch(fallback);
+    return;
+  }
   const loading = states ? loadUfMap() : loadWorldMap();
   loading.then(map => {
     if (!container.isConnected) return;
@@ -868,6 +963,8 @@ function renderViewTabs(group, visible, selected, views) {
 }
 
 function render() {
+  disposeInvestorGlobe?.();
+  disposeInvestorGlobe = undefined;
   const isIntelligence = page === 1;
   const isGeography = page === 6;
   const showInveste = isIntelligence && intelligenceView === "investe";

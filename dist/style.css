@@ -1233,3 +1233,34 @@ tr.clickable:focus-visible {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.investor-map-controls {
+  align-items: end;
+  flex-wrap: wrap;
+}
+.investor-map-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+.investor-map-modes [aria-pressed="true"] {
+  background: #16345f;
+  border-color: #16345f;
+  color: white;
+}
+.investor-globe-stage {
+  margin-top: .75rem;
+  overflow: hidden;
+  border-radius: 14px;
+  background: radial-gradient(ellipse at 50% 46%, #234d77, #102745 62%, #0b1a30);
+}
+.investor-globe {
+  display: block;
+  width: 100%;
+  height: clamp(230px, 55vw, 440px);
+  cursor: grab;
+  touch-action: pan-y pinch-zoom;
+}
+.investor-globe:active {
+  cursor: grabbing;
+}
