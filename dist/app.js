@@ -278,9 +278,14 @@ function trend(i) {
 }
 
 // GRI references come from the optional columns of the imported workbook.
-function griReference(value) {
+function griText(value) {
   const reference = typeof value === "string" ? value.trim() : "";
-  return reference && !/^[-–—]+$/.test(reference)
+  return /^[-–—]+$/.test(reference) ? "" : reference;
+}
+
+function griReference(value) {
+  const reference = griText(value);
+  return reference
     ? `<br><small class="muted"><strong>Referência GRI:</strong> ${esc(reference)}</small>`
     : "";
 }
@@ -299,12 +304,15 @@ function contractChecks(row) {
   return checks;
 }
 
-function indicatorTable(a) {
+function indicatorTable(a, showGriColumn = false) {
+  const headings = ["INDICADOR", "DIMENSÃO"];
+  if (showGriColumn) headings.push("PADRÃO GRI");
+  headings.push("RESULTADO", "META", "STATUS");
   return table(
-    ["INDICADOR", "DIMENSÃO", "RESULTADO", "META", "STATUS"],
+    headings,
     a.map(
       (i) =>
-        `<tr class="clickable" tabindex="0" role="button" data-ind="${esc(i.id)}"><td><small class="muted">${esc(i.id)}</small><br>${esc(i.name)}${griReference(i.r[28])}</td><td>${esc(i.dim)}</td><td><b>${fmt(i, val(i))}</b></td><td>${filters.period === "current" ? fmt(i, i.target) : "Meta histórica não informada"}</td><td>${filters.period === "current" ? badge(i.status) : badge("Comparativo")}</td></tr>`,
+        `<tr class="clickable" tabindex="0" role="button" data-ind="${esc(i.id)}"><td><small class="muted">${esc(i.id)}</small><br>${esc(i.name)}${showGriColumn ? "" : griReference(i.r[28])}</td><td>${esc(i.dim)}</td>${showGriColumn ? `<td>${esc(griText(i.r[28]) || "Não informado na planilha")}</td>` : ""}<td><b>${fmt(i, val(i))}</b></td><td>${filters.period === "current" ? fmt(i, i.target) : "Meta histórica não informada"}</td><td>${filters.period === "current" ? badge(i.status) : badge("Comparativo")}</td></tr>`,
     ),
   );
 }
@@ -353,7 +361,7 @@ function companies() {
   )}</section>`;
 }
 function indicators() {
-  return `<section class="panel full"><h2>Catálogo de indicadores</h2><p>Valores em suas unidades originais · clique para abrir os detalhes.</p><div class="toolbar"><input id="search" placeholder="Buscar nome ou código" value="${esc(search)}" aria-label="Buscar indicador"><button class="btn" id="searchbtn">Buscar</button></div>${indicatorTable(inds())}</section>`;
+  return `<section class="panel full"><h2>Catálogo de indicadores</h2><p>A coluna Padrão GRI mostra a referência vinculada a cada indicador na planilha. Clique no indicador para abrir os detalhes.</p><div class="toolbar"><input id="search" placeholder="Buscar nome ou código" value="${esc(search)}" aria-label="Buscar indicador"><button class="btn" id="searchbtn">Buscar</button></div>${indicatorTable(inds(), true)}</section>`;
 }
 function crossings() {
   const corporatePicker = searchableSelect({id:"cross-indicators", label:"Selecione dois ou mais indicadores", placeholder:"Digite nome ou código", multiple:true, optionHtml:inds().map(i=>`<option value="${esc(i.id)}" ${analysis.indicators.includes(i.id)?"selected":""}>${esc(i.id+" · "+i.dim+" · "+i.name+" ("+i.unit+")")}</option>`).join("")});
@@ -914,7 +922,9 @@ async function importFile(e) {
       d=ASG.clone(raw);
       const old=new Map(ASG.rows(raw,"Indicadores","IND-").map(r=>[r[0],r]));
       d.Indicadores=[[],[],[],rows[0],...rows.slice(1).map(r=>{
-        if(rows[0].length===24){r=r.slice();r[26]=old.get(r[0])?.[26]??null;}
+        const previous = old.get(r[0]);
+        if (rows[0].length === 24) r[26] = previous?.[26] ?? null;
+        if (previous?.[3] === r[3] && griText(previous[28])) r[28] = previous[28];
         return r;
       })];
     } else {

@@ -40,7 +40,7 @@ for(const [name,fn] of [
 ]) test('Importação bloqueia '+name,()=>assert.throws(()=>ASG.validate(mutator(fn))));
 test('Ausência de score não vira zero nem derruba o indicador ponderado',()=>{const d=mutator(d=>{d.Contratos_ASG[4][14]=null;const c=d.Comparativo_Empresas.find(r=>r[0]==='CT-001');c[5]=null;c[6]=null;});ASG.validate(d,{checkCalculated:false});const result=ASG.recalc(d);ASG.validate(result);assert(ASG.rows(result,'Indicadores','IND-').find(r=>r[0]==='IND-37')[10]>0);});
 test('Parâmetros reordenados continuam com os mesmos cálculos',()=>{const d=ASG.clone(data);d['Parâmetros'].reverse();ASG.validate(d);const next=ASG.recalc(d);assert.deepEqual(ASG.rows(next,'Indicadores','IND-').map(r=>r[10]),ASG.rows(data,'Indicadores','IND-').map(r=>r[10]));});
-test('CSV preserva IDs, converte números e rejeita fórmulas',()=>{const header=Array.from({length:27},(_,i)=>'c'+i);header[0]='ID';header[3]='Indicador';const row=ASG.rows(data,'Indicadores','IND-')[0].slice();const text=[header,row].map(r=>r.map(v=>v==null?'':String(v).replaceAll('"','""')).map(v=>'"'+v+'"').join(';')).join('\n');const parsed=ASG.parseCSV(text);assert.equal(parsed[1][0],row[0]);assert.equal(parsed[1][7],row[7]);assert.throws(()=>ASG.parseCSV(text.replace(row[3],'=cmd()')));assert.throws(()=>ASG.parseCSV('ID;Indicador\n1;2'));});
+test('CSV preserva IDs, converte números e rejeita fórmulas',()=>{const header=Array.from({length:27},(_,i)=>'c'+i);header[0]='ID';header[3]='Indicador';const row=ASG.rows(data,'Indicadores','IND-')[0].slice(0,27);const text=[header,row].map(r=>r.map(v=>v==null?'':String(v).replaceAll('"','""')).map(v=>'"'+v+'"').join(';')).join('\n');const parsed=ASG.parseCSV(text);assert.equal(parsed[1][0],row[0]);assert.equal(parsed[1][7],row[7]);assert.throws(()=>ASG.parseCSV(text.replace(row[3],'=cmd()')));assert.throws(()=>ASG.parseCSV('ID;Indicador\n1;2'));});
 test('Novas versões na mesma data não simulam crescimento',()=>{const d=ASG.snapshots([{reference_date:'2026-09-30',created_at:'2026-11-01'},{reference_date:'2026-09-30',created_at:'2026-11-02'},{reference_date:'2025-09-30',created_at:'2026-11-03'}]);assert.equal(d.length,2);assert.equal(d[0].reference_date,'2025-09-30');assert.equal(d[1].created_at,'2026-11-02');});
 
 test('Análises antigas mantêm período e eixos sem invalidar novos filtros',()=>{assert.equal(ASG.normalizeFilters({period:'2026',company:'CT-014'}).period,'current');assert.equal(ASG.normalizeFilters({period:'2025'}).period,'previous');assert.equal(ASG.normalizeFilters({period:'current',dim:'Social'}).indicator,'');});
@@ -120,7 +120,9 @@ test('Mapa apresenta 27 UFs e a lista respeita o recorte selecionado',()=>{
 });
 test('GRI aparece no indicador, no contrato e no tema da mesma versão', () => {
   reset();
-  assert(!run('indicatorTable(inds())').includes('Referência GRI'));
+  assert.match(run('indicators()'), /<th>PADRÃO GRI<\/th>/);
+  assert.match(run('indicators()'), /GRI 302-1 \(Consumo de Energia e Fontes Renováveis\)/);
+  assert.match(run('indicatorTable([inds()[0]].map(i => ({...i,r:i.r.slice(0,28)})), true)'), /Não informado na planilha/);
   assert(!run('companyHtml(contracts[0])').includes('Relato GRI no contrato'));
   assert(!run('materiality()').includes('Referência GRI'));
   ctx.griBase = mutator(base => {

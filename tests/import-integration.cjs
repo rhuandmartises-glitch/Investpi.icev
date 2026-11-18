@@ -15,8 +15,8 @@ function file(name,bytes){return {name,size:bytes.length,arrayBuffer:async()=>by
  // Persistência falha antes de alterar o estado da tela.
  const old=run('raw');fail=true;await run('importFile(event)');await el('#confirmimport').onclick();assert.equal(run('raw'),old);assert.equal(datasets.length,2);fail=false;
  // CSV completo com números, conversão decimal PT-BR e AA preservada.
- const header=Array.from({length:27},(_,i)=>'c'+i);header[0]='ID';header[3]='Indicador';const rows=ASG.rows(payload,'Indicadores','IND-');const csv=[header,...rows].map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(';')).join('\n');ctx.event={target:{files:[file('base.csv',Buffer.from(csv))]}};
- await run('importFile(event)');assert(run('pending!==null'));await el('#confirmimport').onclick();assert.equal(datasets.length,3);assert.equal(run('ind.length'),72);
+ const header=Array.from({length:27},(_,i)=>'c'+i);header[0]='ID';header[3]='Indicador';const rows=ASG.rows(payload,'Indicadores','IND-');const csv=[header,...rows].map(r=>r.slice(0,27).map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(';')).join('\n');ctx.event={target:{files:[file('base.csv',Buffer.from(csv))]}};
+ await run('importFile(event)');assert(run('pending!==null'));await el('#confirmimport').onclick();assert.equal(datasets.length,3);assert.equal(run('ind.length'),72);assert.equal(run('ind[0].r[28]'),rows[0][28]);
  // Arquivo inválido não altera a base nem o histórico.
  ctx.event={target:{files:[file('erro.csv',Buffer.from('ID;Indicador\n1;2'))]}};await run('importFile(event)');assert.equal(run('pending'),null);assert(el('#preview').innerHTML.includes('bloqueada'));assert.equal(datasets.length,3);
  ctx.event={target:{files:[{name:'grande.xlsx',size:11*1024*1024}]}};await run('importFile(event)');assert.equal(run('pending'),null);assert(el('#preview').innerHTML.includes('10 MiB'));
