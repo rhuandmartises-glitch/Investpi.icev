@@ -1159,3 +1159,60 @@ tr.clickable:focus-visible {
   stroke: var(--blue-900);
   stroke-width: 3;
 }
+
+#intelligence-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+#intelligence-tabs [aria-selected="true"] {
+  color: white;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.investe-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.investe-card {
+  overflow-wrap: anywhere;
+}
+
+.investe-card > h3 {
+  color: var(--blue);
+}
+
+.investe-action + .investe-action {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.investe-result {
+  color: var(--blue);
+  font-weight: 700;
+  font-size: clamp(1rem, 2vw, 1.4rem);
+}
+
+.investe-evidence dt {
+  font-weight: 700;
+}
+
+.investe-evidence dd {
+  margin: 0 0 .75rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .investe-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #intelligence-tabs > .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 10px;
+  }
+}

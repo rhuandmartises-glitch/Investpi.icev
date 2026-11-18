@@ -7,6 +7,7 @@ function el(id){if(!elements.has(id))elements.set(id,{innerHTML:'',textContent:'
 const ctx={ASG,XLSX,console,Date,JSON,Number,Set,Map,sessionStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},window:{investAuth:{demo:true,profile:{role:'admin'},datasets:[{id:'initial',payload:data,reference_date:'2026-09-30',created_at:null,source_name:'base.xlsx'}]},scrollTo(){},print(){}},document:{querySelector:el,querySelectorAll:()=>[]},alert(){},confirm:()=>true};
 vm.createContext(ctx);let source=fs.readFileSync('dist/app.js','utf8');source=source.slice(0,source.indexOf('const roleName ='))+source.slice(source.indexOf('function competition()'));vm.runInContext(source,ctx);ctx.fixture=data;vm.runInContext('raw=fixture;model()',ctx);
 const run=code=>vm.runInContext(code,ctx);const reset=()=>run('filters={company:"",sector:"",uf:"",city:"",dim:"",indicator:"",period:"current"};search="";weights={};');
+const originalRender = run('render');
 function mutator(fn){const d=ASG.clone(data);fn(d);return d;}
 test('Base atual: validação de tipos e relacionamentos',()=>assert.deepEqual(ASG.validate(data),{indicators:72,contracts:24}));
 test('72 resultados recalculados iguais aos caches originais',()=>{const n=ASG.rows(ASG.recalc(ASG.clone(data)),'Indicadores','IND-');ASG.rows(data,'Indicadores','IND-').forEach((r,i)=>assert(Math.abs(r[10]-n[i][10])<1e-9,r[0]));});
@@ -142,6 +143,51 @@ test('GRI aparece no indicador, no contrato e no tema da mesma versão', () => {
     assert.match(run('filters.company="CT-001";supplierDashboard()'), /GRI 414-1 \/ 414-2/);
   } finally {
     run('raw=fixture;model()');
+    reset();
+  }
+});
+test('Visão institucional lê cabeçalhos, preserva filtros e distingue zero de ausência', () => {
+  reset();
+  assert.match(run('investeView()'), /Importe uma planilha com a aba ASG_Investe/);
+  const before = ctx.document.querySelectorAll;
+  const indicatorTab = {dataset:{intelligenceTab:"indicators"}};
+  const investeTab = {dataset:{intelligenceTab:"investe"}};
+  let focused = "";
+  for (const tab of ["indicators", "investe"]) el("#intelligence-tab-" + tab).focus = () => { focused = tab; };
+  ctx.document.querySelectorAll = selector => selector === "[data-intelligence-tab]" ? [indicatorTab, investeTab] : [];
+  ctx.URL = URL;
+  ctx.originalRender = originalRender;
+  ctx.investeFixture = mutator(base => {
+    base.ASG_Investe = [
+      ["Resultado", "Nome da ação", "Dimensão ASG", "Unidade", "Natureza do registro", "Fonte ou evidência", "Link da fonte", "Referência GRI"],
+      [87, "Consumo renovável", "Ambiental", "%", "Exemplo demonstrativo", "IND-47", "https://example.org/energia", "GRI 302-1"],
+      [null, "Capacitação", "Social", "pessoas", "Exemplo demonstrativo", null, "javascript:alert(1)"],
+      [0, "Acompanhamento de pendências", "Governança", "pendências", "Exemplo demonstrativo", "CT-001"],
+    ];
+  });
+  try {
+    run('render=originalRender;raw=investeFixture;model();page=1;filters.company="CT-001";filters.uf="PI";render()');
+    assert.match(el("#intelligence-tabs").innerHTML, /Indicadores ASG/);
+    assert.equal(el("#filters").hidden, false);
+    indicatorTab.onkeydown({key:"ArrowRight", preventDefault(){}});
+    assert.equal(focused,"investe");
+    assert.equal(el("#filters").hidden, true);
+    const view = el("#app").innerHTML;
+    for (const sample of ["87%", "Resultado a medir", "0 pendências", "Exemplo demonstrativo"]) assert(view.includes(sample));
+    assert.match(view,/aria-labelledby="intelligence-tab-investe"/);
+    run("investeEvidence(investeActions()[0])");
+    assert.match(el("#detail").innerHTML, /GRI 302-1/);
+    assert.match(el("#detail").innerHTML, /href="https:\/\/example.org\/energia"/);
+    run("investeEvidence(investeActions()[1])");
+    assert(!el("#detail").innerHTML.includes("Abrir fonte"));
+    investeTab.onkeydown({key:"Home", preventDefault(){}});
+    assert.equal(focused,"indicators");
+    assert.equal(el("#filters").hidden, false);
+    assert.equal(run("filters.company"),"CT-001");
+    assert.equal(run("filters.uf"),"PI");
+  } finally {
+    ctx.document.querySelectorAll = before;
+    run('raw=fixture;model();page=0;intelligenceView="indicators"');
     reset();
   }
 });

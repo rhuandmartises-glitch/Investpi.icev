@@ -50,6 +50,12 @@ let extractRange = "active";
 let extractMonth = "";
 let extractAnchor = "";
 let mapUF = "";
+let intelligenceView = "indicators";
+const intelligenceTabs = [
+  ["indicators", "Indicadores ASG"],
+  ["investe", "ASG da Investe Piauí"],
+];
+const investeDimensions = ["Ambiental", "Social", "Governança"];
 
 function latestDataset() {
   return ASG.snapshots(window.investAuth.datasets).at(-1);
@@ -338,6 +344,93 @@ function dashboard() {
     ]);
   return `<div class="cards">${card("Registros no recorte", corporate() ? 1 + c.length : c.length, "Organização principal + registros contratuais filtrados")}${card("Indicadores corporativos", a.length, "Catálogo com origem e critérios")}${card("Pontuação ASG parcial", num(score(a, filters.period === "previous")), "/ 100 · dimensões classificadas")}${card("Valor anual contratado", filters.period === "current" ? "R$ " + num(c.reduce((s, r) => s + r[4], 0) / 1000, 2) + " mi" : "Não disponível", "Fornecedores · não representa receita")}</div><div class="grid"><section class="panel"><h2>Panorama das dimensões ASG</h2><p>Indicadores corporativos por classificação analítica</p>${bars(["Ambiental", "Social", "Governança", "Validar classificação"].map((d) => [d, a.filter((i) => i.dim === d).length]))}<small class="muted">Classificação informada na coluna AA da planilha atual; os eixos originais foram preservados.</small></section><section class="panel"><h2>Acompanhamento das metas</h2><p>Posição corporativa · ${filters.period === "current" ? esc(params["Data-base"]) : "status histórico indisponível"}</p>${filters.period === "current" ? bars(counts) : '<div class="empty">Selecione o período atual para consultar o status registrado.</div>'}<div class="toolbar"><button class="btn" data-page="1">Explorar inteligência ASG →</button></div></section></div><div class="grid"><section class="panel"><h2>Composição setorial</h2><p>Quantidade de fornecedores por categoria contratual</p>${bars(group(c, 2))}</section><section class="panel"><h2>Indicador em perspectiva</h2><p>${esc(a.find((i) => i.id === "IND-47")?.name || a[0]?.name || "Sem indicadores corporativos nesta seleção")}</p>${a.length ? trend(a.find((i) => i.id === "IND-47") || a[0]) : '<div class="empty">Sem indicadores corporativos para o recorte selecionado.</div>'}</section></div><section class="panel full"><h2>Indicadores em acompanhamento</h2><p>Consulte os critérios, valores e a rastreabilidade de cada indicador.</p>${indicatorTable(a.filter((i) => i.status !== "Atende").slice(0, 6))}</section>`;
 }
+function investeActions() {
+  const [headers = [], ...rows] = raw.ASG_Investe || [];
+  const columns = new Map(headers.map((name, index) => [normalizedSearch(String(name ?? "")), index]));
+  return rows.map((row) => {
+    const field = (name) => row[columns.get(name)];
+    return {
+      dimension: normalizedSearch(String(field("dimensao asg") ?? "")),
+      name: field("nome da acao"),
+      status: field("status"),
+      area: field("area responsavel"),
+      sector: field("setor economico"),
+      nature: field("natureza do registro"),
+      result: field("resultado"),
+      unit: String(field("unidade") ?? "").trim(),
+      description: field("descricao"),
+      indicator: field("indicador"),
+      period: field("periodo de medicao"),
+      updated: field("ultima atualizacao"),
+      source: field("fonte ou evidencia"),
+      sourceDate: field("data da fonte"),
+      url: field("link da fonte"),
+      gri: griText(field("referencia gri")),
+    };
+  }).filter(action => String(action.name ?? "").trim());
+}
+
+function investeResult({result, unit}) {
+  if (result == null || String(result).trim() === "") return "Resultado a medir";
+  const value = typeof result === "number" ? num(result, 2) : String(result).trim();
+  return unit === "%" ? value.replace(/%$/, "") + "%" : [value, unit].filter(Boolean).join(" ");
+}
+
+function investeDate(value) {
+  const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? ""));
+  return date ? `${date[3]}/${date[2]}/${date[1]}` : value;
+}
+
+function investeEvidence(action) {
+  const fields = [
+    ["Indicador", action.indicator],
+    ["Período de medição", action.period],
+    ["Última atualização", investeDate(action.updated)],
+    ["Fonte ou evidência", action.source],
+    ["Data da fonte", investeDate(action.sourceDate)],
+    ["Setor econômico", action.sector],
+    ["Referência GRI", action.gri],
+  ];
+  let sourceLink = "";
+  if (/^https?:\/\//i.test(String(action.url ?? "").trim())) {
+    try {
+      const url = new URL(String(action.url).trim());
+      sourceLink = `<a class="btn" href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">Abrir fonte</a>`;
+    } catch {}
+  }
+  modal(`<h2>${esc(action.name)}</h2>
+    ${action.description ? `<p>${esc(action.description)}</p>` : ""}
+    <dl class="investe-evidence">${fields.filter(([, value]) => String(value ?? "").trim())
+      .map(([label, value]) => `<div><dt>${label}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl>
+    ${sourceLink}`);
+}
+
+function investeView() {
+  const actions = investeActions();
+  const groups = investeDimensions.map(dimension => ({
+    dimension,
+    entries: actions.map((action, index) => ({action, index}))
+      .filter(({action}) => action.dimension === normalizedSearch(dimension)),
+  }));
+  const hasActions = groups.some(({entries}) => entries.length);
+  const notice = Array.isArray(raw.ASG_Investe)
+    ? "A aba ASG_Investe ainda não tem ações nas dimensões Ambiental, Social ou Governança."
+    : "Importe uma planilha com a aba ASG_Investe em Gestão e importação de dados.";
+  return `<section class="investe-view"><h2>ASG da Investe Piauí</h2>
+    <p class="muted">Data-base: ${esc(investeDate(params["Data-base"]))}</p>
+    ${hasActions ? `<div class="dimgrid investe-grid">${groups.map(({dimension, entries}) => `
+      <section class="dim investe-card"><h3>${dimension}</h3>
+        ${entries.map(({action, index}) => `<article class="investe-action">
+          <h4>${esc(action.name)}</h4>
+          <p class="investe-result">${esc(investeResult(action))}</p>
+          <p>${esc(action.status || "Status não informado")} · ${esc(action.area || "Área responsável não informada")}</p>
+          ${action.nature ? `<p><span class="pill neutral">${esc(action.nature)}</span></p>` : ""}
+          <button class="btn" type="button" data-investe-evidence="${index}" aria-label="Ver evidência de ${esc(action.name)}">Ver evidência</button>
+        </article>`).join("") || "<p>Nenhuma ação nesta dimensão.</p>"}
+      </section>`).join("")}</div>` : `<div class="panel"><p>${notice}</p></div>`}
+  </section>`;
+}
+
 function intelligence() {
   if (!corporate()) return supplierDashboard();
   let a = inds();
@@ -574,7 +667,17 @@ function management() {
   return `<section class="panel full"><h2>Qualidade e rastreabilidade</h2><div class="quality">Base explicitamente fictícia. 1 organização principal; ${contracts.length} fornecedores, ${ind.length} indicadores corporativos. Identificadores duplicados: ${ind.length - new Set(ind.map((i) => i.id)).size} indicadores; ${contracts.length - new Set(contracts.map((r) => r[0])).size} contratos.</div><div class="quality">${ind.filter((i) => i.value == null).length} resultados atuais ausentes; ${ind.filter((i) => !i.r[23]).length} indicadores sem fonte; ${ind.filter((i) => i.dim === "Validar classificação").length} classificações ASG pendentes.</div><p>Municípios e coordenadas ausentes. Unidade monetária dos contratos: R$ mil; aportes e receita: R$ milhões. Não somar grandezas de unidades distintas. Fim da vigência contratual não é período de observação. Atualização da fonte não informada; data-base ${esc(params["Data-base"])}.</p><h3>Proveniência</h3><p>Resultados: coluna K de Indicadores; comparativo L; metas N; pesos T. A linha exata está nos detalhes de cada indicador. Classificação ASG: coluna AA da nova planilha. Dados originais e vínculos entre abas permanecem identificados. O protótipo lê valores armazenados e recalcula indicadores compatíveis na importação; não executa fórmulas Excel arbitrárias.</p></section><section class="panel full"><h2>Importar e validar dados</h2><p>Excel: mesmo modelo da planilha original. CSV: substituição do catálogo com 24 ou 27 colunas originais, na mesma ordem, cabeçalho na primeira linha e números em formato decimal; as outras entidades são preservadas. O CSV deve conter valores, sem fórmulas.</p>${$("#role").value === "Administrador" ? '<div class="filebox"><input type="file" id="file" accept=".xlsx,.csv"><div id="preview"></div></div>' : "<p>Seu perfil permite consulta. Solicite o perfil de administrador ao responsável.</p>"}<p>${window.investAuth.demo ? "Demonstração: importações e versões ficam somente nesta sessão do navegador. Não envie dados reais. O banco institucional não é acessado." : "Base e versões no banco protegido; importações exigem permissão de administrador. Preferências temporárias ficam nesta sessão."}</p><h3>Registro das atualizações</h3>${versionTable()}</section>`;
 }
 function render() {
-  controls();
+  const isIntelligence = page === 1;
+  const showInveste = isIntelligence && intelligenceView === "investe";
+  $("#filters").hidden = showInveste;
+  $("#demo-notice").hidden = showInveste;
+  if (!showInveste) controls();
+  const tabs = $("#intelligence-tabs");
+  tabs.hidden = !isIntelligence;
+  tabs.innerHTML = isIntelligence ? intelligenceTabs.map(([id, label]) =>
+    `<button class="btn" type="button" role="tab" id="intelligence-tab-${id}" data-intelligence-tab="${id}"
+      aria-selected="${id === intelligenceView}" aria-controls="intelligence-panel"
+      tabindex="${id === intelligenceView ? 0 : -1}">${label}</button>`).join("") : "";
   $("footer span").textContent="Fonte: "+(sessionStorage.getItem("asg-source")||"Base carregada")+" · data-base "+params["Data-base"];
 
   $("#nav").innerHTML = pages
@@ -585,9 +688,9 @@ function render() {
     .join("");
   $("#heading").innerHTML =
     `<div><span class="eyebrow">VISÃO ESTRATÉGICA · ASG</span><h1>${pages[page]}</h1><p>Informação para acompanhar o desenvolvimento sustentável.</p></div><button class="btn primary" data-page="7">↗ Gerar extrato ASG</button>`;
-  $("#app").innerHTML = [
+  const content = [
     dashboard,
-    intelligence,
+    showInveste ? investeView : intelligence,
     companies,
     indicators,
     crossings,
@@ -598,6 +701,9 @@ function render() {
     competition,
     materiality,
   ][page]();
+  $("#app").innerHTML = isIntelligence
+    ? `<div id="intelligence-panel" role="tabpanel" tabindex="0" aria-labelledby="intelligence-tab-${intelligenceView}">${content}</div>`
+    : content;
   bind();
   const corporateButton = $("#corporate-view");
   if (corporateButton) corporateButton.onclick = () => {
@@ -738,8 +844,38 @@ async function exportPdf() {
 }
 function exportExcel() { XLSX.writeFile(exportWorkbook(),"Extrato_ASG.xlsx"); }
 
+function bindIntelligenceTabs() {
+  document.querySelectorAll("[data-intelligence-tab]").forEach((tab) => {
+    const select = (view) => {
+      intelligenceView = view;
+      render();
+      $(`#intelligence-tab-${view}`).focus();
+    };
+    tab.onclick = () => select(tab.dataset.intelligenceTab);
+    tab.onkeydown = (event) => {
+      const last = intelligenceTabs.length - 1;
+      const current = intelligenceTabs.findIndex(([id]) => id === tab.dataset.intelligenceTab);
+      const target = {
+        Home: 0,
+        End: last,
+        ArrowLeft: (current + last) % intelligenceTabs.length,
+        ArrowRight: (current + 1) % intelligenceTabs.length,
+      }[event.key];
+      if (target === undefined) return;
+      event.preventDefault();
+      select(intelligenceTabs[target][0]);
+    };
+  });
+  if (intelligenceView !== "investe") return;
+  const actions = investeActions();
+  document.querySelectorAll("[data-investe-evidence]").forEach((button) => {
+    button.onclick = () => investeEvidence(actions[Number(button.dataset.investeEvidence)]);
+  });
+}
+
 function bind() {
   bindSelectSearch();
+  if (page === 1) bindIntelligenceTabs();
   if (page === 6 && $("#supplier-map")) bindSupplierMap($("#supplier-map"));
   if (page === 5 && $("#history-month")) $("#history-month").onchange = event => {
     historyMonth = event.target.value;
@@ -774,6 +910,7 @@ function bind() {
               .filter(dataset => sameOrganization(dataset.payload)).at(-1)?.reference_date ?? "";
           }
         }
+        if (nextPage === 1 && page !== 1) intelligenceView = "indicators";
         page = nextPage;
         render();
         window.scrollTo(0, 0);
