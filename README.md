@@ -8,13 +8,35 @@ Painel existente, revisado por auditoria funcional em 07/11/2026. A versão publ
 - Cadastro e recuperação são simulados; nenhum e-mail é enviado.
 - O Supabase institucional não é acessado no modo demonstrativo.
 
+## Entrega da atividade
+
+Temas **T1, T5 e T14**. Aplicação web em HTML, CSS e JavaScript para explorar indicadores corporativos e dados de fornecedores e investidores. O arquivo Power BI PBIX não se aplica.
+
+- [Painel demonstrativo](https://rhuandmartises-glitch.github.io/Investpi.icev/)
+- [Repositório oficial](https://github.com/rhuandmartises-glitch/Investpi.icev)
+- [Dicionário de dados](docs/entrega/Dicionario_de_Dados.csv)
+- [Catálogo de indicadores e fórmulas](docs/entrega/Dicionario_de_Indicadores_e_Formulas.csv)
+- [Fórmulas gerais e SCORE ESG](docs/entrega/Dicionario_de_Formulas_Gerais.csv)
+- [Fórmulas Excel da origem](docs/entrega/Formulas_Excel_na_Origem.csv)
+- [Proposta de automação](docs/entrega/Automacao_Proposta.md)
+
+A base inicial publicada em dist/demo-data.json contém **72 indicadores**. A planilha revisada tem **78 indicadores**, 24 contratos, 12 investidores e três ações ASG_Investe, com data-base 30/09/2026. A revisão é carregada pela importação e confirmação. Sedes e evidências da demonstração são fictícias.
+
+O pacote de entrega inclui a planilha revisada, a base JSON inicial, a planilha de origem histórica, os dicionários e a documentação. A planilha histórica é preservada como fonte de desenvolvimento. Para nova importação, utilize o arquivo revisado.
+
+O SCORE ESG corporativo parcial usa **Σ(pontos do status × peso) / Σ(pesos elegíveis)**. Na fonte atual, Atende = 100, Atenção = 60 e Crítico = 20. Só entram resultados numéricos classificados em E/S/G com peso positivo. Ausências são excluídas e sem observações elegíveis a nota é não calculável. As notas são diagnósticas. Scores individuais de fornecedores são dados originais da fonte.
+
+O globo usa Canvas 2D com projeção esférica, malha Natural Earth local, busca por país e alternativa em mapa 2D. A localização indica a sede do investidor. As ações da Investe são lidas por cabeçalho na aba ASG_Investe.
+
+Webhook e consulta agendada à API são propostas de evolução. Não há robô mensal em execução na publicação. O modo institucional Supabase está preparado no código. O site público usa demonstração e conserva importações na sessão do navegador.
+
 ## Auditoria
 
 O relatório detalhado está em [audit/AUDITORIA_TECNICA.md](audit/AUDITORIA_TECNICA.md), com problemas, causas, correções, testes e pendências. As versões anteriores foram preservadas em `backup/pre-auditoria-20261107`. Os dados demonstrativos de origem não foram substituídos.
 
 ## Dados e relacionamentos
 
-A fonte atual contém uma organização principal, 72 indicadores corporativos, 24 registros de fornecedores/contratos, 12 investidores, 25 denúncias, 12 riscos e 12 temas de materialidade. Indicadores não são observações individuais de fornecedores. A coluna AA informa a classificação E/S/G; os eixos originais são preservados.
+A base inicial publicada contém uma organização principal, 72 indicadores corporativos, 24 registros de fornecedores/contratos, 12 investidores, 25 denúncias, 12 riscos e 12 temas de materialidade. Indicadores não são observações individuais de fornecedores. A coluna AA informa a classificação E/S/G; os eixos originais são preservados.
 
 O ID `CT-*` identifica o contrato. A base atual tem um registro por fornecedor e nomes distintos; não há cadastro mestre de empresas/CNPJ nem municípios. O painel não agrupa contratos de empresas por semelhança de nomes e não inventa cidades.
 

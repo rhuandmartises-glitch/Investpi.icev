@@ -1,0 +1,20 @@
+﻿metrica;formula_ou_regra;entradas_e_condicoes;unidade_escala;limite_interpretativo;funcao_no_codigo
+Resultado direto;R = A;A numérico;Unidade da linha;A ausente produz nulo;ASG.calculate
+Razão;R = A / B;A e B numéricos, B != 0;% armazenado em fração quando aplicável;B ausente ou zero produz nulo;ASG.calculate
+Taxa por mil;R = (A / B) * 1000;A e B numéricos, B != 0;Por mil;Sem denominador válido, nulo;ASG.calculate
+Taxa por milhão;R = (A / B) * 1000000;A e B numéricos, B != 0;Por milhão;Sem denominador válido, nulo;ASG.calculate
+Status Maior é melhor;"Atende se R >= meta; Atenção se R >= limite; Crítico nos demais";R, meta e limite numéricos;Classe;Sem valores, Não calculável;ASG.status
+Status Menor é melhor;"Atende se R <= meta; Atenção se R <= limite; Crítico nos demais";R, meta e limite numéricos;Classe;Sem valores, Não calculável;ASG.status
+SCORE ESG corporativo parcial;Σ(pontos_status * peso) / Σ(pesos);Dimensão válida, R numérico, peso > 0;0–100. Atende=100, Atenção=60, Crítico=20 na fonte atual;Ausências excluídas. Sem peso elegível, nulo. Diagnóstico sem ranking;ASG.score
+Pontuações E/S/G;Mesma fórmula do SCORE aplicada à dimensão;E/S/G reconhecido;0–100;Geral não é média simples das dimensões;ASG.score
+Valor anual contratado;Σ valor_anual_contrato;Contratos do recorte;Fonte R$ mil. Tela divide por 1000 para R$ mi;Não representa receita ou pagamento efetivo;dashboard/supplierDashboard
+Média de fornecedores;Σ scores_válidos / quantidade_válida;Score numérico da fonte;Pontos;Metodologia individual do score não fornecida;supplierDashboard
+IND-37;Σ(valor_contrato * score) / Σ(valor_contrato);Apenas contratos com score numérico;Pontos;Média ponderada distinta da média simples;ASG.recalc
+Pearson;Σ[(x-mx)*(y-my)] / sqrt(Σ(x-mx)^2 * Σ(y-my)^2);3 ou mais pares e variâncias não nulas;-1 a 1;Descritiva. Não demonstra causalidade ou significância;ASG.pearson
+Risco inerente;probabilidade * impacto;Entradas 1–5;0–25;Recalculado nas linhas RI;ASG.recalc
+Risco residual;round(inerente * (1-eficacia), 1 casa);Eficácia 0–1;Pontos;Médio >=5, Alto >=10, Crítico >=15 na fonte atual;ASG.recalc
+Materialidade;relevancia * impacto;Entradas 1–5;Prioridade;Alta >=20, Média >=12, Baixa nos demais;ASG.validate
+Participação geográfica;registros_região / total_recorte;"Investidores únicos por ID; fornecedores por CT";Proporção;Sede distinta do local de aplicação do investimento;investorMapData / bindSupplierMap
+Duração de apuração;floor((encerramento_ou_data_base - abertura) / 86400000);Datas ISO válidas;Dias;"Conclusão no prazo <=60; backlog em apuração >90 na fonte atual";ASG.recalc
+Reunião no trimestre;ano/trimestre da reunião iguais aos da data-base;Data de reunião;Sim/Não;Usado em IND-40;ASG.recalc
+Retrato temporal;Versão mais recente de cada reference_date;Data-base e created_at;Datas-base ordenadas;Revisão da mesma data-base não cria crescimento;ASG.snapshots
